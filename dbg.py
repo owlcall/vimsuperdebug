@@ -98,6 +98,10 @@ class DBG:
 		
 		# Format LLDB frame information output
 		self.debug.write('settings set frame-format "frame #${frame.index}: ${frame.pc}{ ${module.file.fullpath}`${function.name-with-args}{${function.pc-offset}}}{ at ${line.file.fullpath}:${line.number}}"')
+
+		# Format LLDB thread information output
+		self.debug.write('''settings set thread-format "thread #${thread.index}: tid = ${thread.id%tid}{, ${frame.pc}}{ ${module.file.fullpath}{`${function.name-with-args}{${function.pc-offset}}}}{ at ${line.file.fullpath}:${line.number}}{, name = '${thread.name}'}{, queue = '${thread.queue}'}{, activity = '${thread.info.activity.name}'}{, ${thread.info.trace_messages} messages}{, stop reason = ${thread.stop-reason}}"''')
+
 		# Create target executable for LLDB, and ensure we were successful
 		self.debug.write('target create "'+path+'"')
 		i = self.debug.process.expect(["error: (.*)\r\n", "Current executable set to '(.*)'.*\((.*)\).\r\n"])
@@ -156,8 +160,8 @@ class DBG:
 		if(self.initialized is False): return False
 		if(self.running is False): return False
 
-		self.debug.write('continue')
-		self.debug.process.expect(".+?Process [0-9]* resuming\r\n")
+		self.debug.process.sendline('continue')
+		self.debug.process.expect(".+?Process [0-9]* resuming")
 
 		print("Continuing execution")
 		return True
@@ -169,7 +173,7 @@ class DBG:
 			return False
 
 		self.debug.write("step")
-		i = self.debug.process.expect(["error: (.*)\r\n", "(.+)\(lldb\)"])
+		i = self.debug.process.expect(["error: (.*)\r\n", "(.+)\(lldb\) "])
 		if(i == 0):
 			print("Failed to step into the instruction.")
 			return False
@@ -190,16 +194,32 @@ class DBG:
 		else:
 			assert(false)
 
-		self.debug.process.expect("(.+)\r\n")
+		self.debug.process.expect("(.+)\r\n\(lldb\) ")
 		print("BP RESUTS: "+self.debug.process.match.groups()[0])
 		return True
-	
+
+	# Return the backtrace (call stack)
+	def backtrace(self):
+		if(self.initialized is False): return False
+		
+		self.debug.write("bt")
+		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+
+		return self.parse_frames(self.debug.process.match.groups()[0])
+
+	# Return the thread list
+	def threads(self):
+		if(self.initialized is False): return False
+
+		self.debug.write("thread list")
+		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
+
+		return self.parse_threads(self.debug.process.match.groups()[0])
+
+
 
 	def parse_frames(self, data):
-		# Parse out frame information
-		# Format:
-		# * frame #0: 0x0000abcd /path/to/module`symbol + offset at /path/to/file:line
-		matches = re.findall(r"(\*?)?\s?frame\s#(\d):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
+		matches = re.findall(r"(\*?)?\s?frame\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
 
 		frames = []
 		for match in matches:
@@ -209,46 +229,66 @@ class DBG:
 			frame.print()
 		return frames
 
+	def parse_threads(self, data):
+		print("debug threads: "+data)
+		matches = re.findall(r"(\*?)?\s?thread\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
 
-	# Return the backtrace (call stack)
-	def backtrace(self):
-		if(self.initialized is False): return False
-		
-		self.debug.write("bt")
-		self.debug.process.expect("\* thread.*?\r\n(.*)")
+		threads = []
+		for match in matches:
+			threads.append(Thread(*match))
 
-		results = self.debug.process.match.groups()[0]
-		self.parse_frames(results)
-
-
+		for thread in threads:
+			thread.print()
+		return threads
 
 	# At the time of running/continuing, we're often waiting on the debugger to stop at a breakpoint or after interruption, at this point we must be ready to intercept input and trigger results
 	def wait_for_break(self):
 		if(self.initialized is False or self.running is False): return False
-		self.debug.process.expect(".*?\*\sthread.*?\r\n(.*)")
+		# self.debug.process.expect(".*?\*\sthread.*?\r\n(.*)")
+		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)")
 		frames = self.parse_frames(self.debug.process.match.groups()[0])
 		return frames
 
 class Frame:
-	# def __init__(self, procID, threadID, frameID, memoryLocation, binaryName, funcSignature, fileName, lineNumber):
+	# Initialize frame information from data
 	def __init__(self, default, frame, memory, module_path, function, offset, source_path, source_line):
-		self.default = default
-		self.frame = frame
-		self.memory = memory
-		self.module = module_path
-		self.function = function
-		self.offset = offset
-		self.source = source_path
-		self.line = source_line
+		self.default = True if(default == "*") else False
+		self.frame = int(frame)
+		self.memory = str(memory)
+		self.module = str(module_path)
+		self.function = str(function)
+		self.offset = int(offset)
+		self.source = str(source_path)
+		self.line = int(source_line) if source_line is not '' else -1
 
 	def print(self):
 		print("------------------------------- FRAME")
-		print(("*"if self.default else" ")+" f: "+self.frame+" "+self.memory+" "+self.function)
+		print(("*"if self.default else" ")+" f: "+str(self.frame)+" "+self.memory+" "+self.function)
 		if(self.source):
-			print("File: "+self.source+"["+self.line+"]")
+			print("File: "+self.source+"["+str(self.line)+"]")
 		else:
 			print("File: unknown")
 
+class Thread:
+	# Initialize thread information from data
+	def __init__(self, default, thread, tid, memory, module_path, function, offset, source_path, source_line):
+		self.default = True if(default == "*") else False
+		self.thread = int(thread)
+		self.tid = str(tid)
+		self.memory = str(memory)
+		self.module = str(module_path)
+		self.function = str(function)
+		self.offset = int(offset)
+		self.source = str(source_path)
+		self.line = int(source_line) if source_line is not '' else -1
+
+	def print(self):
+		print("------------------------------- THREAD")
+		print(("*"if self.default else" ")+" t: "+str(self.thread)+" "+self.memory+" "+self.function)
+		if(self.source):
+			print("File: "+self.source+"["+str(self.line)+"]")
+		else:
+			print("File: unknown")
 
 import time
 
@@ -259,6 +299,13 @@ dbg.run()
 dbg.wait_for_break()
 # time.sleep(10)
 # dbg.interrupt()
+dbg.backtrace()
+dbg.threads()
+assert(dbg.breakpoint(file="main.cpp", line=96))
+dbg.resume()
+dbg.wait_for_break()
+dbg.threads()
+dbg.threads()
 dbg.backtrace()
 # dbg.resume()
 dbg.quit()
