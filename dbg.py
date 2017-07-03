@@ -63,17 +63,14 @@ class Process:
 # [x] Run given program
 # [x] Pause current program
 # [x] Continue running program
-# Quit debugging program
+# [x] Quit debugging program
 # [x] Step over function
 # [x] Step into function
 # [x] Step out of function
 
-# Return local and global variables
-# Re-assign local and global variables' values
+# Return locals, args, and global variables
+# Re-assign local, args, and global variables' values
 # Watch variables (break if variable value changes)
-
-# Query member variables for local objects
-# Query member variables for global objects
 
 # [x] Return call stack
 # [x] Return list of threads
@@ -156,8 +153,8 @@ class DBG:
 		if(self.running is False): return False
 
 		self.debug.process.sendcontrol('c')
-		self.debug.process.expect(".*")
-		# self.debug.process.expect(".+Process [0-9]* stopped\r\n")
+		# self.debug.process.expect(".*")
+		self.debug.process.expect([".+Process [0-9]* stopped\r\n", ".*"])
 
 		print("Interrupted execution")
 		return True
@@ -233,84 +230,79 @@ class DBG:
 			assert(false)
 
 		self.debug.process.expect("(.+)\r\n\(lldb\) ")
+		# TODO: document created breakpoint
 		print("BP RESUTS: "+self.debug.process.match.groups()[0])
 		return True
 
-	# Return the backtrace (call stack)
-	def backtrace(self):
+	# Select next frame for interaction
+	def frame_next(self):
+		if(self.initialized is False): return False
+
+		self.debug.write("up")
+		self.callstack()
+
+	# Select next frame for interaction
+	def frame_previous(self):
+		if(self.initialized is False): return False
+
+		self.debug.write("down")
+		self.callstack()
+	
+	# Select specific frame for interaction
+	def frame_select(self, index):
+		if(self.initialized is False): return False
+
+		self.debug.write("frame select "+str(index))
+		self.callstack()
+	
+	# Update current call stack (thread and current thread frame)
+	def callstack(self):
 		if(self.initialized is False): return False
 		
-		self.debug.write("bt")
-		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+		Thread.clear()
 
-		return self.parse_frames(self.debug.process.match.groups()[0])
-
-	# Return the thread list
-	def threads(self):
-		if(self.initialized is False): return False
-
+		# Update the thread stack
 		self.debug.write("thread list")
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
-
-		return self.parse_threads(self.debug.process.match.groups()[0])
-
-
-
-	def parse_frames(self, data):
-		matches = re.findall(r"(\*?)?\s?frame\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
-
-		frames = []
+		matches = re.findall(r"(\*?)?\s?thread\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
-			frames.append(Frame(*match))
-
-		for frame in frames:
-			frame.print()
-		return frames
-
-	def parse_threads(self, data):
-		matches = re.findall(r"(\*?)?\s?thread\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
-
-		threads = []
+			Thread(*match)
+		
+		# Update the frame (call) stack
+		self.debug.write("bt")
+		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+		matches = re.findall(r"(\*?)?\s?frame\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
-			threads.append(Thread(*match))
+			frame = Frame(Thread.default, *match)
 
-		for thread in threads:
-			thread.print()
-		return threads
+		Thread.print()
+
+	# Return the global variables
+	def globals(self):
+		pass
+
+	# Return the local variables
+	def locals(self):
+		pass
+
+	# Return the function arguments
+	def arguments(self):
+		pass
 
 	# At the time of running/continuing, we're often waiting on the debugger to stop at a breakpoint or after interruption, at this point we must be ready to intercept input and trigger results
 	def wait_for_break(self):
 		if(self.initialized is False or self.running is False): return False
-		# self.debug.process.expect(".*?\*\sthread.*?\r\n(.*)")
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)")
-		frames = self.parse_frames(self.debug.process.match.groups()[0])
-		return frames
-
-class Frame:
-	# Initialize frame information from data
-	def __init__(self, default, frame, memory, module_path, function, offset, source_path, source_line):
-		self.default = True if(default == "*") else False
-		self.frame = int(frame)
-		self.memory = str(memory)
-		self.module = str(module_path)
-		self.function = str(function)
-		self.offset = int(offset)
-		self.source = str(source_path)
-		self.line = int(source_line) if source_line is not '' else -1
-
-	def print(self):
-		print("------------------------------- FRAME")
-		print(("*"if self.default else" ")+" f: "+str(self.frame)+" "+self.memory+" "+self.function)
-		if(self.source):
-			print("File: "+self.source+"["+str(self.line)+"]")
-		else:
-			print("File: unknown")
+		self.callstack()
 
 class Thread:
+	map = {}
+	default = None
+
 	# Initialize thread information from data
 	def __init__(self, default, thread, tid, memory, module_path, function, offset, source_path, source_line):
 		self.default = True if(default == "*") else False
-		self.thread = int(thread)
+		self.id = int(thread)
 		self.tid = str(tid)
 		self.memory = str(memory)
 		self.module = str(module_path)
@@ -318,31 +310,57 @@ class Thread:
 		self.offset = int(offset)
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
+		Thread.map[thread] = self
+		if(self.default):Thread.default = self
+		
+		self.frames = {}
+		self.defaultFrame = None
 
-	def print(self):
-		print("------------------------------- THREAD")
-		print(("*"if self.default else" ")+" t: "+str(self.thread)+" "+self.memory+" "+self.function)
-		if(self.source):
-			print("File: "+self.source+"["+str(self.line)+"]")
-		else:
-			print("File: unknown")
+	def clear():
+		Thread.map = {}
+		Thread.default = None
 
-import time
+	def print():
+		print("================= Callstack ================")
+		for threadId,thread in Thread.map.items():
+			print((">>"if thread.default else"  ")+" T: "+str(threadId)+" | "+thread.function)
+			for frameId,frame in thread.frames.items():
+				print("\t"+(">>"if frame.default else"  ")+" F: "+str(frameId)+" | "+frame.function)
+		print("============================================")
+
+class Frame:
+	# Initialize frame information from data
+	def __init__(self, thread, default, frame, memory, module_path, function, offset, source_path, source_line):
+		self.default = True if(default == "*") else False
+		self.id = int(frame)
+		self.memory = str(memory)
+		self.module = str(module_path)
+		self.function = str(function)
+		self.offset = int(offset)
+		self.source = str(source_path)
+		self.line = int(source_line) if source_line is not '' else -1
+
+		thread.frames[self.id] = self
+		if(self.default):thread.default = self
+
+
 
 dbg = DBG()
 dbg.initialize("~/Code/prototypes/alpha/bin/alpha")
 assert(dbg.breakpoint(function="main", file="main.cpp"))
 dbg.run()
 dbg.wait_for_break()
-# time.sleep(10)
 # dbg.interrupt()
-dbg.backtrace()
-dbg.threads()
+dbg.callstack()
 assert(dbg.breakpoint(file="main.cpp", line=96))
 dbg.resume()
 dbg.wait_for_break()
-dbg.threads()
-dbg.backtrace()
+dbg.callstack()
+dbg.frame_next()
+dbg.callstack()
+dbg.resume()
+dbg.interrupt()
 # dbg.resume()
+
 dbg.quit()
 
