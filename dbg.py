@@ -61,12 +61,12 @@ class Process:
 # [x] Set breakpoint function/method
 
 # [x] Run given program
-# Pause current program
-# Continue running program
+# [x] Pause current program
+# [x] Continue running program
 # Quit debugging program
-# Step over function
-# Step into function
-# Step out of function
+# [x] Step over function
+# [x] Step into function
+# [x] Step out of function
 
 # Return local and global variables
 # Re-assign local and global variables' values
@@ -75,7 +75,8 @@ class Process:
 # Query member variables for local objects
 # Query member variables for global objects
 
-# Return list of threads
+# [x] Return call stack
+# [x] Return list of threads
 # Return current thread ID
 # Switch to another thread as context (globals shared, locals changed)
 
@@ -118,13 +119,19 @@ class DBG:
 
 	# Quit the program
 	def quit(self):
-		print("quit interrupting...")
+		print("Interrupting debugger to begin quitting process...")
 		self.interrupt()
-		print("writing quit to lldb...")
-		self.debug.write("quit")
-		print("closing lldb process...")
-		self.debug.close()
-		print("finished quit method")
+		self.debug.process.sendline("quit")
+		i = self.debug.process.expect([".*?Do you really want to proceed", pexpect.EOF])
+		if(i == 0):
+			print("Quitting debugged applications")
+			self.debug.write("Y")
+			self.debug.process.expect(pexpect.EOF)
+		
+		print("Closing application")
+		if(self.debug.process.isalive()):
+			self.debug.close()
+		
 
 	# Run given program
 	def run(self):
@@ -178,7 +185,38 @@ class DBG:
 			print("Failed to step into the instruction.")
 			return False
 		elif(i == 1):
-			print("Stepped to next frame")
+			print("Stepped into next frame")
+		return True
+
+	# Step over call
+	def step_over(self, count=1):
+		# Ensure we're running first
+		if(self.running is not True):
+			return False
+
+		self.debug.write("next")
+		i = self.debug.process.expect(["error: (.*)\r\n", "(.*)\(lldb\) "])
+		if(i == 0):
+			print("Failed to step over the instruction.")
+			return False
+		elif(i == 1):
+			print("Stepped over the frame")
+		return True
+
+	# Step out of call
+	def step_out(self, count=1):
+		# Ensure we're running first
+		if(self.running is not True):
+			return False
+
+		self.debug.write("finish")
+		i = self.debug.process.expect(["error: (.*)\r\n", "(.*)\(lldb\) "])
+		if(i == 0):
+			print("Failed to step out of the instruction.")
+			return False
+		elif(i == 1):
+			print("Stepped out of the frame")
+		return True
 
 	# Set breakpoint by function name (and optionally file)
 	# Set breakpoint by file name and line number
@@ -230,7 +268,6 @@ class DBG:
 		return frames
 
 	def parse_threads(self, data):
-		print("debug threads: "+data)
 		matches = re.findall(r"(\*?)?\s?thread\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
 
 		threads = []
@@ -304,7 +341,6 @@ dbg.threads()
 assert(dbg.breakpoint(file="main.cpp", line=96))
 dbg.resume()
 dbg.wait_for_break()
-dbg.threads()
 dbg.threads()
 dbg.backtrace()
 # dbg.resume()
