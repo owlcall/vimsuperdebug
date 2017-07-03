@@ -97,7 +97,7 @@ class DBG:
 		self.program = path
 		
 		# Format LLDB frame information output
-		# self.debug.write('settings set frame-format "frame #${frame.index}: ${frame.pc}{ ${module.file.fullpath}`${function.name-with-args}{${function.pc-offset}}}{ at ${line.file.fullpath}:${line.number}}"')
+		self.debug.write('settings set frame-format "frame #${frame.index}: ${frame.pc}{ ${module.file.fullpath}`${function.name-with-args}{${function.pc-offset}}}{ at ${line.file.fullpath}:${line.number}}"')
 		# Create target executable for LLDB, and ensure we were successful
 		self.debug.write('target create "'+path+'"')
 		i = self.debug.process.expect(["error: (.*)\r\n", "Current executable set to '(.*)'.*\((.*)\).\r\n"])
@@ -193,7 +193,23 @@ class DBG:
 		self.debug.process.expect("(.+)\r\n")
 		print("BP RESUTS: "+self.debug.process.match.groups()[0])
 		return True
-		
+	
+
+	def parse_frames(self, data):
+		# Parse out frame information
+		# Format:
+		# * frame #0: 0x0000abcd /path/to/module`symbol + offset at /path/to/file:line
+		matches = re.findall(r"(\*?)?\s?frame\s#(\d):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", data, re.DOTALL)
+
+		frames = []
+		for match in matches:
+			frames.append(Frame(*match))
+
+		for frame in frames:
+			frame.print()
+		return frames
+
+
 	# Return the backtrace (call stack)
 	def backtrace(self):
 		if(self.initialized is False): return False
@@ -202,82 +218,36 @@ class DBG:
 		self.debug.process.expect("\* thread.*?\r\n(.*)")
 
 		results = self.debug.process.match.groups()[0]
-		matches = re.findall(r"(\*?)?\s?frame #(\d):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\r\n", results, re.DOTALL)
-		for match in matches:
-			# Parse out the function string from possible options:
-			#: main(arch=1, argv=0x000000abcdef) at main.cpp:51
-			#: Greeter.hasMet(name="Anton", self=0x0000000101200190) -> Bool + 24 at Greeter.swift:5
-			#: Greeter.greet(name="Anton", self=0x0000000101200190) -> () + 84 at Greeter.swift:9
-			#: main + 155 at Greeter.swift:20
-			#: start + 1
-
-			# Extract the 5th capture group:
-			data = match[4]
-			expr = re.compile(r"(.*)?\s(?:\+\s(\d*)\sat\s(\S*):(\d*)|\+\s(\d*)|at\s(\S*):(\d*))")
-			sigmatch = re.match(expr, data)
-			datamatch = sigmatch
-			if(datamatch is None):
-				datamatch = ""
-			else:
-				datamatch = str(datamatch.groups())
-
-			default = False
-			if(match[0] == "*"): default = True
-			frameID = match[1]
-			memory = match[2]
-			module = match[3]
-
-			symbol = sigmatch[1]
-
-			# First variable (+ offset at location:line)
-			offset = 0 if sigmatch[2] is None else sigmatch[2]
-			location = "" if sigmatch[3] is None else sigmatch[3]
-			line = -1 if sigmatch[4] is None else sigmatch[4]
-
-			# Second variation (+ offset)
-			offset = offset if sigmatch[5] is None else sigmatch[5]
-
-			# Third variation (at location:line)
-			location = location if sigmatch[6] is None else sigmatch[6]
-			line = line if sigmatch[7] is None else sigmatch[7]
-			
-			if(default): frameID = str(frameID)+"*"
-			else: frameID = str(frameID)+" "
-			output = "Fr: "+str(frameID)+" mem: "+str(memory)+" module: "+str(module)
-			output = output + "\t"+str(symbol)
-			if location:
-				output = output+" "+str(location)+"["+str(line)+"]"
-
-			print(output)
+		self.parse_frames(results)
 
 
 
 	# At the time of running/continuing, we're often waiting on the debugger to stop at a breakpoint or after interruption, at this point we must be ready to intercept input and trigger results
 	def wait_for_break(self):
 		if(self.initialized is False or self.running is False): return False
-
-		self.debug.process.expect(".+Process (\d+) stopped.*\* thread #(\d+).*frame #(\d+): ([0-9a-fA-FxX]*) (\w*)`(.*) at ([0-9a-zA-Z]*?\.?[0-9a-zA-Z]*?):(\d*)")
-		print("--------------- BREAK")
-
-		frame = Frame(*self.debug.process.match.groups())
-		frame.print()
+		self.debug.process.expect(".*?\*\sthread.*?\r\n(.*)")
+		frames = self.parse_frames(self.debug.process.match.groups()[0])
+		return frames
 
 class Frame:
-	def __init__(self, procID, threadID, frameID, memoryLocation, binaryName, funcSignature, fileName, lineNumber):
-		self.procID = procID
-		self.threadID = threadID
-		self.frameID = frameID
-		self.memory = memoryLocation
-		self.binary = binaryName
-		self.function = funcSignature
-		self.file = fileName
-		self.line = lineNumber
+	# def __init__(self, procID, threadID, frameID, memoryLocation, binaryName, funcSignature, fileName, lineNumber):
+	def __init__(self, default, frame, memory, module_path, function, offset, source_path, source_line):
+		self.default = default
+		self.frame = frame
+		self.memory = memory
+		self.module = module_path
+		self.function = function
+		self.offset = offset
+		self.source = source_path
+		self.line = source_line
 
 	def print(self):
 		print("------------------------------- FRAME")
-		print("PID: "+str(self.procID)+", TID: "+str(self.threadID)+", FID: "+str(self.frameID))
-		print("MID: "+str(self.memory)+": "+str(self.function)+" "+self.binary+"@"+str(self.file)+"["+str(self.line)+"]")
-
+		print(("*"if self.default else" ")+" f: "+self.frame+" "+self.memory+" "+self.function)
+		if(self.source):
+			print("File: "+self.source+"["+self.line+"]")
+		else:
+			print("File: unknown")
 
 
 import time
