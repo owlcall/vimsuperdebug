@@ -234,29 +234,42 @@ class DBG:
 
 	# Select next frame for interaction
 	def frame_next(self):
-		if(self.initialized is False): return False
+		result = Thread.default.defaultFrame
+		grabNext = False
+		for frameId, frame in Thread.default.frames.items():
+			if(grabNext):
+				result = frame
+				break
+			if(frame.default): grabNext = True
 
-		self.debug.write("up")
-		self.callstack()
+		if(result.default):
+			return False
+		return self.frame_select(result.id)
 
 	# Select next frame for interaction
 	def frame_previous(self):
-		if(self.initialized is False): return False
+		result = Thread.default.defaultFrame
+		grabLast = False
+		for frameId, frame in Thread.default.frames.items():
+			if(grabLast): break
+			if(frame.default): grabLast = True
+			else: result = frame
 
-		self.debug.write("down")
-		self.callstack()
+		if(result.default):
+			return False
+		return self.frame_select(result.id)
 	
 	# Select specific frame for interaction
 	def frame_select(self, index):
 		if(self.initialized is False): return False
 
+		if(index not in Thread.default.frames):
+			return False
 		self.debug.write("frame select "+str(index))
 		self.callstack()
 
 	# Select next thread for interaction
 	def thread_next(self):
-		if(self.initialized is False): return False
-
 		result = Thread.default
 		grabNext = False
 		for threadId, thread in Thread.map.items():
@@ -268,9 +281,6 @@ class DBG:
 		if(result.default):
 			return False
 		return self.thread_select(result.id)
-		# self.debug.write("thread select "+str(result.id))
-		# self.callstack()
-		# return True
 
 	# Select next thread for interaction
 	def thread_previous(self):
@@ -284,17 +294,12 @@ class DBG:
 		if(result.default):
 			return False
 		return self.thread_select(result.id)
-		# self.debug.write("thread select "+str(result.id))
-		# self.callstack()
-		# return True
 	
 	# Select specific thread for interaction
 	def thread_select(self, index):
 		if(self.initialized is False): return False
 
 		if(index not in Thread.map):
-			print(str(index)+" is not in thread map")
-			print(str(Thread.map))
 			return False
 		self.debug.write("thread select "+str(index))
 		self.callstack()
@@ -309,14 +314,16 @@ class DBG:
 		# Update the thread stack
 		self.debug.write("thread list")
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?)", self.debug.process.match.groups()[0], re.DOTALL)
+		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
 			Thread(*match)
 
 		# Update the frame (call) stack
 		self.debug.write("bt")
 		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(\*?)?\s?frame\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", self.debug.process.match.groups()[0], re.DOTALL)
+		matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
+		if(len(matches) == 0):
+			print(self.debug.process.match.groups()[0])
 		for match in matches:
 			Frame(Thread.default, *match)
 
@@ -382,12 +389,12 @@ class Frame:
 		self.memory = str(memory)
 		self.module = str(module_path)
 		self.function = str(function)
-		self.offset = int(offset)
+		self.offset = int(offset) if offset is not '' else -1
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
 
 		thread.frames[self.id] = self
-		if(self.default):thread.default = self
+		if(self.default):thread.defaultFrame = self
 
 
 
@@ -405,14 +412,14 @@ dbg.callstack()
 dbg.frame_next()
 dbg.callstack()
 print("Looking at next thread")
-for i in range(0,20):
+for i in range(0,15):
 	dbg.thread_next()
 	for j in range(0,10):
 		dbg.frame_next()
 	for j in range(0,10):
 		dbg.frame_previous()
 
-for i in range(0,20):
+for i in range(0,15):
 	dbg.thread_previous()
 	for j in range(0,10):
 		dbg.frame_next()
