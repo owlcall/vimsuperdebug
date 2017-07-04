@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import subprocess
 import pexpect
 import re
 
@@ -72,7 +71,8 @@ class Process:
 
 # [x] Return call stack
 # [x] Return list of threads
-# Return current thread ID
+# [x] Thread navigation
+# [x] Frame navigation
 # Switch to another thread as context (globals shared, locals changed)
 
 class DBG:
@@ -368,6 +368,15 @@ class Thread:
 		self.frames = {}
 		self.defaultFrame = None
 
+	def hasOffset():
+		if(offset != -1):
+			return True
+		return False
+
+	def hasSource():
+		if(self.source and self.line != -1):
+			return True
+		return False
 
 	def clear():
 		Thread.map = {}
@@ -396,6 +405,10 @@ class Frame:
 		thread.frames[self.id] = self
 		if(self.default):thread.defaultFrame = self
 
+	def hasSource():
+		if(self.source and self.line != -1):
+			return True
+		return False
 
 
 dbg = DBG()
