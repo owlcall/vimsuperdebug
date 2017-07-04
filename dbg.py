@@ -6,8 +6,6 @@ import re
 
 # Interface for interacting with the debugger in an intuitive manner
 
-# TODO: disable timeout on the debug process executables (since debugging lasts indefinitely)
-
 class Process:
 	def __init__(self):
 		self.process = None
@@ -24,7 +22,7 @@ class Process:
 		if(self.is_open()):
 			print('Can\'t open process "'+process+'" because another process is already open.\nExisting process is "'+self.process+'"')
 			return False
-		self.process = pexpect.spawnu(process)
+		self.process = pexpect.spawnu(process, timeout=None)
 		self.process.expect(".+\(lldb\) ")
 		return True
 
@@ -254,26 +252,67 @@ class DBG:
 
 		self.debug.write("frame select "+str(index))
 		self.callstack()
+
+	# Select next thread for interaction
+	def thread_next(self):
+		if(self.initialized is False): return False
+
+		nextThread = Thread.default
+		grabNext = False
+		for threadId, thread in Thread.map.items():
+			if(grabNext):
+				nextThread = thread
+				print("Selecting thread: "+str(threadId))
+				break
+			if(thread.default): grabNext = True
+
+		self.debug.write("thread select "+str(nextThread.id))
+		self.debug.expect("\(lldb\) ")
+		self.callstack()
+		self.callstack()
+
+	# Select next thread for interaction
+	def thread_previous(self):
+		if(self.initialized is False): return False
+
+		lastThread = Thread.default
+		grabLast = False
+		for threadId, thread in Thread.map.items():
+			if(grabLast):
+				print("Selecting thread: "+str(threadId))
+				break
+			if(thread.default): grabLast = True
+			else: lastThread = thread
+
+		self.debug.write("thread select "+str(lastThread.id))
+		self.callstack()
 	
+	# Select specific thread for interaction
+	def thread_select(self, index):
+		if(self.initialized is False): return False
+
+		self.debug.write("thread select "+str(index))
+		self.callstack()
+
 	# Update current call stack (thread and current thread frame)
 	def callstack(self):
 		if(self.initialized is False): return False
 		
 		Thread.clear()
-
+			
 		# Update the thread stack
 		self.debug.write("thread list")
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(\*?)?\s?thread\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", self.debug.process.match.groups()[0], re.DOTALL)
+		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?)", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
 			Thread(*match)
-		
+
 		# Update the frame (call) stack
 		self.debug.write("bt")
 		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
 		matches = re.findall(r"(\*?)?\s?frame\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
-			frame = Frame(Thread.default, *match)
+			Frame(Thread.default, *match)
 
 		Thread.print()
 
@@ -307,7 +346,7 @@ class Thread:
 		self.memory = str(memory)
 		self.module = str(module_path)
 		self.function = str(function)
-		self.offset = int(offset)
+		self.offset = int(offset) if offset is not '' else -1
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
 		Thread.map[thread] = self
@@ -315,6 +354,7 @@ class Thread:
 		
 		self.frames = {}
 		self.defaultFrame = None
+
 
 	def clear():
 		Thread.map = {}
@@ -358,6 +398,46 @@ dbg.wait_for_break()
 dbg.callstack()
 dbg.frame_next()
 dbg.callstack()
+print("Looking at next thread")
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_next()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
+dbg.thread_previous()
 dbg.resume()
 dbg.interrupt()
 # dbg.resume()
