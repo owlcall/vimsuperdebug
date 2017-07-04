@@ -257,42 +257,48 @@ class DBG:
 	def thread_next(self):
 		if(self.initialized is False): return False
 
-		nextThread = Thread.default
+		result = Thread.default
 		grabNext = False
 		for threadId, thread in Thread.map.items():
 			if(grabNext):
-				nextThread = thread
-				print("Selecting thread: "+str(threadId))
+				result = thread
 				break
 			if(thread.default): grabNext = True
 
-		self.debug.write("thread select "+str(nextThread.id))
-		self.debug.expect("\(lldb\) ")
-		self.callstack()
-		self.callstack()
+		if(result.default):
+			return False
+		return self.thread_select(result.id)
+		# self.debug.write("thread select "+str(result.id))
+		# self.callstack()
+		# return True
 
 	# Select next thread for interaction
 	def thread_previous(self):
-		if(self.initialized is False): return False
-
-		lastThread = Thread.default
+		result = Thread.default
 		grabLast = False
 		for threadId, thread in Thread.map.items():
-			if(grabLast):
-				print("Selecting thread: "+str(threadId))
-				break
+			if(grabLast): break
 			if(thread.default): grabLast = True
-			else: lastThread = thread
+			else: result = thread
 
-		self.debug.write("thread select "+str(lastThread.id))
-		self.callstack()
+		if(result.default):
+			return False
+		return self.thread_select(result.id)
+		# self.debug.write("thread select "+str(result.id))
+		# self.callstack()
+		# return True
 	
 	# Select specific thread for interaction
 	def thread_select(self, index):
 		if(self.initialized is False): return False
 
+		if(index not in Thread.map):
+			print(str(index)+" is not in thread map")
+			print(str(Thread.map))
+			return False
 		self.debug.write("thread select "+str(index))
 		self.callstack()
+		return True
 
 	# Update current call stack (thread and current thread frame)
 	def callstack(self):
@@ -349,7 +355,7 @@ class Thread:
 		self.offset = int(offset) if offset is not '' else -1
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
-		Thread.map[thread] = self
+		Thread.map[self.id] = self
 		if(self.default):Thread.default = self
 		
 		self.frames = {}
@@ -399,45 +405,19 @@ dbg.callstack()
 dbg.frame_next()
 dbg.callstack()
 print("Looking at next thread")
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_next()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
-dbg.thread_previous()
+for i in range(0,20):
+	dbg.thread_next()
+	for j in range(0,10):
+		dbg.frame_next()
+	for j in range(0,10):
+		dbg.frame_previous()
+
+for i in range(0,20):
+	dbg.thread_previous()
+	for j in range(0,10):
+		dbg.frame_next()
+	for j in range(0,10):
+		dbg.frame_previous()
 dbg.resume()
 dbg.interrupt()
 # dbg.resume()
