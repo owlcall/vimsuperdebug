@@ -335,6 +335,15 @@ class DBG:
 
 	# Return the local variables
 	def locals(self):
+		if(self.initialized is False or self.running is False): return False
+		self.debug.write("frame variable")
+		self.debug.process.expect("(.*?)\(lldb\) ")
+		# print(self.debug.process.match.groups()[0])
+
+		matches = re.findall(r"(?:(?:\((.*?)\)\s([a-zA-Z0-9_]*)\s=.*?)|.*?)\r\n", self.debug.process.match.groups()[0], re.DOTALL)
+		for match in matches:
+			if(match[0] == ''): continue
+			print("|"+match[0]+"|"+match[1])
 		pass
 
 	# Return the function arguments
@@ -346,6 +355,18 @@ class DBG:
 		if(self.initialized is False or self.running is False): return False
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)")
 		self.callstack()
+
+class Variable:
+	globals = {}
+	locals = {}
+	arguments = {}
+
+	# Initialize variable
+	def __init__(self, category, type, name, value):
+		self.category = category
+		self.type = type
+		self.name = name
+		self.value = value
 
 class Thread:
 	map = {}
@@ -424,20 +445,23 @@ dbg.wait_for_break()
 dbg.callstack()
 dbg.frame_next()
 dbg.callstack()
-print("Looking at next thread")
-for i in range(0,15):
-	dbg.thread_next()
-	for j in range(0,10):
-		dbg.frame_next()
-	for j in range(0,10):
-		dbg.frame_previous()
+# print("Looking at next thread")
+# for i in range(0,15):
+	# dbg.thread_next()
+	# for j in range(0,10):
+		# dbg.frame_next()
+	# for j in range(0,10):
+		# dbg.frame_previous()
 
-for i in range(0,15):
-	dbg.thread_previous()
-	for j in range(0,10):
-		dbg.frame_next()
-	for j in range(0,10):
-		dbg.frame_previous()
+# for i in range(0,15):
+	# dbg.thread_previous()
+	# for j in range(0,10):
+		# dbg.frame_next()
+	# for j in range(0,10):
+		# dbg.frame_previous()
+dbg.frame_previous()
+dbg.locals()
+
 dbg.resume()
 dbg.interrupt()
 # dbg.resume()
