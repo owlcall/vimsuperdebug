@@ -19,7 +19,7 @@ class Process:
 
 	def open(self, process):
 		if(self.is_open()):
-			print('Can\'t open process "'+process+'" because another process is already open.\nExisting process is "'+self.process+'"')
+			# print('Can\'t open process "'+process+'" because another process is already open.\nExisting process is "'+self.process+'"')
 			return False
 		self.process = pexpect.spawnu(process, timeout=None)
 		self.process.expect(".+\(lldb\) ")
@@ -75,9 +75,9 @@ class Process:
 # [x] Frame navigation
 # Switch to another thread as context (globals shared, locals changed)
 
-class DBG:
+class DebugController:
 	def __init__(self):
-		print("DBG class instantiated")
+		# print("DebugController class instantiated")
 		self.program = None
 		self.debug = Process()
 		self.debug.open("lldb")
@@ -85,6 +85,8 @@ class DBG:
 		self.initialized = False
 		self.running = False
 		self.paused = False
+
+		self.breakpoints = []
 
 	# Set program which will be used for debugging
 	def initialize(self, path):
@@ -102,28 +104,28 @@ class DBG:
 		self.debug.write('target create "'+path+'"')
 		i = self.debug.process.expect(["error: (.*)\r\n", "Current executable set to '(.*)'.*\((.*)\).\r\n"])
 		if(i == 0):
-			print("Failed to initialize executable for debugging.")
-			print("Error: "+self.debug.process.match.groups()[0])
+			# print("Failed to initialize executable for debugging.")
+			# print("Error: "+self.debug.process.match.groups()[0])
 			self.initialized = False
 		elif(i == 1):
-			print("Successfully initalized executable for debugging.")
-			print("Executable: "+self.debug.process.match.groups()[0])
-			print("Architecture: "+self.debug.process.match.groups()[1])
+			# print("Successfully initalized executable for debugging.")
+			# print("Executable: "+self.debug.process.match.groups()[0])
+			# print("Architecture: "+self.debug.process.match.groups()[1])
 			self.initialized = True
 		return self.initialized
 
 	# Quit the program
 	def quit(self):
-		print("Interrupting debugger to begin quitting process...")
+		# print("Interrupting debugger to begin quitting process...")
 		self.interrupt()
 		self.debug.process.sendline("quit")
 		i = self.debug.process.expect([".*?Do you really want to proceed", pexpect.EOF])
 		if(i == 0):
-			print("Quitting debugged applications")
+			# print("Quitting debugged applications")
 			self.debug.write("Y")
 			self.debug.process.expect(pexpect.EOF)
 		
-		print("Closing application")
+		# print("Closing application")
 		if(self.debug.process.isalive()):
 			self.debug.close()
 		
@@ -135,14 +137,15 @@ class DBG:
 		self.debug.write('run')
 		i = self.debug.process.expect(["error: (.*)\r\n", "Process (\d+) launched: '(.*)' \((.*)\)."])
 		if(i == 0):
-			print("Failed to launch debug program.")
-			print("Error: "+self.debug.process.match.groups()[0])
+			# print("Failed to launch debug program.")
+			# print("Error: "+self.debug.process.match.groups()[0])
 			self.running = False
 		elif(i == 1):
-			print("Successfully launched debug program.")
+			# print("Successfully launched debug program.")
 			self.running = True
 		else:
-			print("UNKNOWN THINGS HAPPEND IN RUN")
+			# print("UNKNOWN THINGS HAPPEND IN RUN")
+			self.running = False
 		return self.running
 
 	# Interrupt given program
@@ -154,7 +157,7 @@ class DBG:
 		# self.debug.process.expect(".*")
 		self.debug.process.expect([".+Process [0-9]* stopped\r\n", ".*"])
 
-		print("Interrupted execution")
+		# print("Interrupted execution")
 		return True
 
 	# Resume interrupted program
@@ -165,22 +168,7 @@ class DBG:
 		self.debug.process.sendline('continue')
 		self.debug.process.expect(".+?Process [0-9]* resuming")
 
-		print("Continuing execution")
-		return True
-
-	# Step into call
-	def step_into(self, count=1):
-		# Ensure we're running first
-		if(self.running is not True):
-			return False
-
-		self.debug.write("step")
-		i = self.debug.process.expect(["error: (.*)\r\n", "(.+)\(lldb\) "])
-		if(i == 0):
-			print("Failed to step into the instruction.")
-			return False
-		elif(i == 1):
-			print("Stepped into next frame")
+		# print("Continuing execution")
 		return True
 
 	# Step over call
@@ -192,10 +180,27 @@ class DBG:
 		self.debug.write("next")
 		i = self.debug.process.expect(["error: (.*)\r\n", "(.*)\(lldb\) "])
 		if(i == 0):
-			print("Failed to step over the instruction.")
+			# print("Failed to step over the instruction.")
 			return False
 		elif(i == 1):
-			print("Stepped over the frame")
+			# print("Stepped over the frame")
+			pass
+		return True
+
+	# Step into call
+	def step_in(self, count=1):
+		# Ensure we're running first
+		if(self.running is not True):
+			return False
+
+		self.debug.write("step")
+		i = self.debug.process.expect(["error: (.*)\r\n", "(.+)\(lldb\) "])
+		if(i == 0):
+			# print("Failed to step into the instruction.")
+			return False
+		elif(i == 1):
+			# print("Stepped into next frame")
+			pass
 		return True
 
 	# Step out of call
@@ -207,29 +212,58 @@ class DBG:
 		self.debug.write("finish")
 		i = self.debug.process.expect(["error: (.*)\r\n", "(.*)\(lldb\) "])
 		if(i == 0):
-			print("Failed to step out of the instruction.")
+			# print("Failed to step out of the instruction.")
 			return False
 		elif(i == 1):
-			print("Stepped out of the frame")
+			# print("Stepped out of the frame")
+			pass
 		return True
 
 	# Set breakpoint by function name (and optionally file)
 	# Set breakpoint by file name and line number
-	def breakpoint(self, function=None, file=None, line=-1):
+	def breakpoint(self, function=None, source=None, line=-1):
 		if(self.initialized is False): return False
 
 		argFile = ""
-		if(file is not None and len(file) > 0): argFile = "-f "+file
+		if(source is not None and source): argFile = "-f "+source
 		if(function is not None):
 			self.debug.write("br s -n "+function+" "+argFile)
-		elif(file is not None and line is not -1):
+		elif(source is not None and (line is not None and line >= 0)):
 			self.debug.write("br s "+argFile+" -l "+str(line))
 		else:
 			assert(false)
 
-		self.debug.process.expect("(.+)\r\n\(lldb\) ")
+		prc = self.debug.process.expect([
+			"error\:\s(.*)?\r\n\(lldb\) ",
+			"Breakpoint\s(\d*)?\:\sno\slocations\s\(pending\)\.",
+			"Breakpoint\s(\d*)?\:\s(.*)?\(lldb\) "
+			])
+		if(prc == 0):
+			print("error setting breakpoint: "+str(self.debug.process.match.groups()[0]))
+			return False
+		elif(prc == 1):
+			print("added pending breakpoint")
+			self.breakpoints.append(Breakpoint('pending', source, int(line), function))
+		elif(prc == 2):
+			print("adding specific breakpoint...")
+			result = self.debug.process.match.groups()[1]
+			match = re.match(r"(\d*)?\slocations\.", result)
+			if(match is not None):
+				print("Set generic breakpoint in multiple locations")
+				return True
+
+			# match = re.match(r".*?where\s=\s(.*?)`(.*)", result)
+			match = re.match(r".*?where\s\=\s(.*?)`(.*?)(?:\s\+\s(\d*)?)(?:\sat\s(\S*):(\d*))", result)
+			if(len(match.groups()) > 0):
+				newPath = str(match.group(4)) if match.group(4) != '' else source
+				newLine = int(match.group(5)) if match.group(5) != '' else line
+				newFunction = function if function else str(match.group(3))
+				print("added specific breakpoint "+str(newFunction)+" "+newPath+":"+str(newLine))
+				self.breakpoints.append(Breakpoint('added', newPath, newLine, newFunction))
+				return True
+
 		# TODO: document created breakpoint
-		print("BP RESUTS: "+self.debug.process.match.groups()[0])
+		# print("BP RESUTS: "+self.debug.process.match.groups()[0])
 		return True
 
 	# Select next frame for interaction
@@ -307,27 +341,7 @@ class DBG:
 
 	# Update current call stack (thread and current thread frame)
 	def callstack(self):
-		if(self.initialized is False): return False
-		
-		Thread.clear()
-			
-		# Update the thread stack
-		self.debug.write("thread list")
-		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
-		for match in matches:
-			Thread(*match)
-
-		# Update the frame (call) stack
-		self.debug.write("bt")
-		self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
-		if(len(matches) == 0):
-			print(self.debug.process.match.groups()[0])
-		for match in matches:
-			Frame(Thread.default, *match)
-
-		Thread.print()
+		return BackTrace(self)
 
 	# Return the global variables
 	def globals(self):
@@ -343,7 +357,7 @@ class DBG:
 		matches = re.findall(r"(?:(?:\((.*?)\)\s([a-zA-Z0-9_]*)\s=.*?)|.*?)\r\n", self.debug.process.match.groups()[0], re.DOTALL)
 		for match in matches:
 			if(match[0] == ''): continue
-			print("|"+match[0]+"|"+match[1])
+			# print("|"+match[0]+"|"+match[1])
 		pass
 
 	# Return the function arguments
@@ -355,6 +369,8 @@ class DBG:
 		if(self.initialized is False or self.running is False): return False
 		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)")
 		self.callstack()
+
+
 
 class Variable:
 	globals = {}
@@ -368,14 +384,58 @@ class Variable:
 		self.name = name
 		self.value = value
 
-class Thread:
-	map = {}
-	default = None
 
-	# Initialize thread information from data
-	def __init__(self, default, thread, tid, memory, module_path, function, offset, source_path, source_line):
+
+
+class BackTrace:
+	def __init__(self, dbg):
+		self.threads = {}
+		self.selection = None
+
+		if(not dbg): return
+		if(not dbg.initialized or not dbg.running): return
+
+		# Read thread list from the debugger
+		dbg.debug.write("thread list")
+		dbg.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
+		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
+
+		# Initialize thread stack
+		for match in matches:
+			Thread(*match)
+			thread = Thread(*match)
+			self.threads[thread.index] = thread
+			self.selection = thread if thread.default else self.selection
+
+		# Read the backtrace for every thread
+		for index in self.threads:
+			dbg.debug.write("thread backtrace "+str(index))
+			dbg.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+			matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
+			for match in matches:
+				self.threads[index].add_frame(Frame(*match))
+
+	def add_thread(thread):
+		self.threads[thread.index] = thread
+		self.default = thread if thread.default else self.default
+		return thread
+
+
+
+
+class Breakpoint:
+	def __init__(self, status, source_path, source_line, function):
+		self.source = source_path
+		self.line = source_line
+		self.function = function
+		self.status = status
+
+
+class Thread:
+
+	def __init__(self, default, index, tid, memory, module_path, function, offset, source_path, source_line):
 		self.default = True if(default == "*") else False
-		self.id = int(thread)
+		self.index = int(index)
 		self.tid = str(tid)
 		self.memory = str(memory)
 		self.module = str(module_path)
@@ -383,39 +443,28 @@ class Thread:
 		self.offset = int(offset) if offset is not '' else -1
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
-		Thread.map[self.id] = self
-		if(self.default):Thread.default = self
-		
 		self.frames = {}
-		self.defaultFrame = None
+	
+	def add_frame(self, frame):
+		self.frames[frame.index] = frame
+		self.selection = frame if frame.default else self.selection
 
-	def hasOffset():
-		if(offset != -1):
+	def has_offset(self):
+		if(self.offset != -1):
 			return True
 		return False
 
-	def hasSource():
+	def has_source(self):
 		if(self.source and self.line != -1):
 			return True
 		return False
 
-	def clear():
-		Thread.map = {}
-		Thread.default = None
-
-	def print():
-		print("================= Callstack ================")
-		for threadId,thread in Thread.map.items():
-			print((">>"if thread.default else"  ")+" T: "+str(threadId)+" | "+thread.function)
-			for frameId,frame in thread.frames.items():
-				print("\t"+(">>"if frame.default else"  ")+" F: "+str(frameId)+" | "+frame.function)
-		print("============================================")
 
 class Frame:
-	# Initialize frame information from data
-	def __init__(self, thread, default, frame, memory, module_path, function, offset, source_path, source_line):
+
+	def __init__(self, default, index, memory, module_path, function, offset, source_path, source_line):
 		self.default = True if(default == "*") else False
-		self.id = int(frame)
+		self.index = int(index)
 		self.memory = str(memory)
 		self.module = str(module_path)
 		self.function = str(function)
@@ -423,48 +472,45 @@ class Frame:
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
 
-		thread.frames[self.id] = self
-		if(self.default):thread.defaultFrame = self
-
-	def hasSource():
+	def has_source(self):
 		if(self.source and self.line != -1):
 			return True
 		return False
 
 
-dbg = DBG()
-dbg.initialize("~/Code/prototypes/alpha/bin/alpha")
-assert(dbg.breakpoint(function="main", file="main.cpp"))
-dbg.run()
-dbg.wait_for_break()
-# dbg.interrupt()
-dbg.callstack()
-assert(dbg.breakpoint(file="main.cpp", line=96))
-dbg.resume()
-dbg.wait_for_break()
-dbg.callstack()
-dbg.frame_next()
-dbg.callstack()
-# print("Looking at next thread")
-# for i in range(0,15):
-	# dbg.thread_next()
-	# for j in range(0,10):
-		# dbg.frame_next()
-	# for j in range(0,10):
-		# dbg.frame_previous()
-
-# for i in range(0,15):
-	# dbg.thread_previous()
-	# for j in range(0,10):
-		# dbg.frame_next()
-	# for j in range(0,10):
-		# dbg.frame_previous()
-dbg.frame_previous()
-dbg.locals()
-
-dbg.resume()
-dbg.interrupt()
+# dbg = DebugController()
+# dbg.initialize("~/Code/prototypes/alpha/bin/alpha")
+# assert(dbg.breakpoint(function="main", file="main.cpp"))
+# dbg.run()
+# dbg.wait_for_break()
+# # dbg.interrupt()
+# dbg.callstack()
+# assert(dbg.breakpoint(file="main.cpp", line=96))
 # dbg.resume()
+# dbg.wait_for_break()
+# dbg.callstack()
+# dbg.frame_next()
+# dbg.callstack()
+# # print("Looking at next thread")
+# # for i in range(0,15):
+	# # dbg.thread_next()
+	# # for j in range(0,10):
+		# # dbg.frame_next()
+	# # for j in range(0,10):
+		# # dbg.frame_previous()
 
-dbg.quit()
+# # for i in range(0,15):
+	# # dbg.thread_previous()
+	# # for j in range(0,10):
+		# # dbg.frame_next()
+	# # for j in range(0,10):
+		# # dbg.frame_previous()
+# dbg.frame_previous()
+# dbg.locals()
+
+# dbg.resume()
+# dbg.interrupt()
+# # dbg.resume()
+
+# dbg.quit()
 
