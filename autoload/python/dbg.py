@@ -2,6 +2,7 @@
 
 import pexpect
 import re
+from datetime import datetime
 
 # Interface for interacting with the debugger in an intuitive manner
 
@@ -221,17 +222,24 @@ class DebugController:
 
 	# Set breakpoint by function name (and optionally file)
 	# Set breakpoint by file name and line number
-	def breakpoint(self, function=None, source=None, line=-1):
+	def breakpoint(self, function=None, source=str(), line=-1, module=str()):
 		if(self.initialized is False): return False
 
-		argFile = ""
-		if(source is not None and source): argFile = "-f "+source
-		if(function is not None):
-			self.debug.write("br s -n "+function+" "+argFile)
-		elif(source is not None and (line is not None and line >= 0)):
-			self.debug.write("br s "+argFile+" -l "+str(line))
-		else:
-			assert(false)
+		argFile = "br s "
+
+		if(function is not None and function): argFile = argFile + "-n " + str(function)
+		if(source is not None and source): argFile = argFile + " -f " + str(source)
+		if(line is not None and line > 0): argFile = argFile + " -l " + str(line)
+		if(module): argFile = argFile + " -s " + str(module)
+
+		# if(function is not None):
+			# self.debug.write("br s -n "+function+" "+argFile)
+		# elif(source is not None and (line is not None and line >= 0)):
+			# self.debug.write("br s "+argFile+" -l "+str(line))
+		# else:
+			# assert(false)
+		print("Breakpoint command: "+argFile)
+		self.debug.write(argFile)
 
 		prc = self.debug.process.expect([
 			"error\:\s(.*)?\r\n\(lldb\) ",
@@ -244,6 +252,7 @@ class DebugController:
 		elif(prc == 1):
 			print("added pending breakpoint")
 			self.breakpoints.append(Breakpoint('pending', source, int(line), function))
+			print("Pending breakpoint: "+str(source)+":"+str(line)+", "+str(function))
 		elif(prc == 2):
 			print("adding specific breakpoint...")
 			result = self.debug.process.match.groups()[1]
@@ -265,6 +274,36 @@ class DebugController:
 		# TODO: document created breakpoint
 		# print("BP RESUTS: "+self.debug.process.match.groups()[0])
 		return True
+
+	# Collect disassembly information
+	def disassembly(self):
+		t1 = datetime.now()
+		print("Getting disassembly...")
+		self.debug.write("disassemble --frame")
+		print("Waiting for command to return")
+		prc = self.debug.process.expect([
+			"\r\n(.*)?\r\n\(lldb\)\s"
+			]) 
+		t2 = datetime.now()
+		print("Capture time: "+str(t2-t1))
+		if(prc == 0):
+			# print("error disassembling program: "+str(self.debug.process.match.groups()[0]))
+			# return False
+		# elif(prc == 1):
+			print("Getting match groups...")
+			result = self.debug.process.match.groups()[0]
+
+			# Break down the assembly into a line list
+			print("Splitting string...")
+			t3 = datetime.now()
+			result = result.split('\r\n')
+			# Identify the source line
+			print("splitting time: "+str(datetime.now()-t3))
+			print("disassembly time: "+str(datetime.now()-t1))
+			return (result, 1)
+
+		print("Leaving function")
+		return None
 
 	# Select next frame for interaction
 	def frame_next(self):
@@ -443,6 +482,7 @@ class Thread:
 		self.offset = int(offset) if offset is not '' else -1
 		self.source = str(source_path)
 		self.line = int(source_line) if source_line is not '' else -1
+		self.selection = None
 		self.frames = {}
 	
 	def add_frame(self, frame):
