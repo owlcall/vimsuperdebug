@@ -88,6 +88,7 @@ class DebugController:
 		self.paused = False
 
 		self.breakpoints = []
+		self.backtrace = BackTrace()
 
 	# Set program which will be used for debugging
 	def initialize(self, path):
@@ -261,7 +262,6 @@ class DebugController:
 				print("Set generic breakpoint in multiple locations")
 				return True
 
-			# match = re.match(r".*?where\s=\s(.*?)`(.*)", result)
 			match = re.match(r".*?where\s\=\s(.*?)`(.*?)(?:\s\+\s(\d*)?)(?:\sat\s(\S*):(\d*))", result)
 			if(len(match.groups()) > 0):
 				newPath = str(match.group(4)) if match.group(4) != '' else source
@@ -277,33 +277,46 @@ class DebugController:
 
 	# Collect disassembly information
 	def disassembly(self):
-		t1 = datetime.now()
-		print("Getting disassembly...")
 		self.debug.write("disassemble --frame")
-		print("Waiting for command to return")
-		prc = self.debug.process.expect([
-			"\r\n(.*)?\r\n\(lldb\)\s"
-			]) 
-		t2 = datetime.now()
-		print("Capture time: "+str(t2-t1))
+		prc = self.debug.process.expect("\r\n\(lldb\)\s") 
 		if(prc == 0):
-			# print("error disassembling program: "+str(self.debug.process.match.groups()[0]))
-			# return False
-		# elif(prc == 1):
-			print("Getting match groups...")
-			result = self.debug.process.match.groups()[0]
+			result = self.debug.process.before.split('\r\n')
 
-			# Break down the assembly into a line list
-			print("Splitting string...")
-			t3 = datetime.now()
-			result = result.split('\r\n')
-			# Identify the source line
-			print("splitting time: "+str(datetime.now()-t3))
-			print("disassembly time: "+str(datetime.now()-t1))
-			return (result, 1)
+			# Remove empty lines before the start of disassembly
+			print('result: '+result[0])
+			while not result[0] or (result[0].startswith('    ') is False and result[0].startswith('-> ') is False):
+				result.pop(0)
 
-		print("Leaving function")
+			count = 1
+			for line in result:
+				if line.startswith("-> "):
+					break
+				else: count = count + 1
+			return (result, count)
+
 		return None
+
+	# Return current backtrace
+	def callstack(self):
+		self.debug.write("thread list")
+		self.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
+		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
+
+		self.backtrace = BackTrace()
+		# Initialize thread stack
+		for match in matches:
+			thread = Thread(*match)
+			self.backtrace.threads[thread.index] = thread
+			self.backtrace.selection = thread if thread.default else self.backtrace.selection
+
+		# Read the backtrace for every thread
+		for index in self.backtrace.threads:
+			self.debug.write("thread backtrace "+str(index))
+			self.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+			matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", self.debug.process.match.groups()[0], re.DOTALL)
+			for match in matches:
+				self.backtrace.threads[index].add_frame(Frame(*match))
+		return self.backtrace
 
 	# Select next frame for interaction
 	def frame_next(self):
@@ -335,11 +348,11 @@ class DebugController:
 	# Select specific frame for interaction
 	def frame_select(self, index):
 		if(self.initialized is False): return False
-
-		if(index not in Thread.default.frames):
+		if(index not in self.backtrace.selection.frames):
 			return False
 		self.debug.write("frame select "+str(index))
 		self.callstack()
+		return True
 
 	# Select next thread for interaction
 	def thread_next(self):
@@ -372,15 +385,11 @@ class DebugController:
 	def thread_select(self, index):
 		if(self.initialized is False): return False
 
-		if(index not in Thread.map):
+		if(index not in self.backtrace.threads):
 			return False
 		self.debug.write("thread select "+str(index))
 		self.callstack()
 		return True
-
-	# Update current call stack (thread and current thread frame)
-	def callstack(self):
-		return BackTrace(self)
 
 	# Return the global variables
 	def globals(self):
@@ -427,32 +436,33 @@ class Variable:
 
 
 class BackTrace:
-	def __init__(self, dbg):
+	def __init__(self):
 		self.threads = {}
 		self.selection = None
+		self.default = None
 
-		if(not dbg): return
-		if(not dbg.initialized or not dbg.running): return
+		# if(not dbg): return
+		# if(not dbg.initialized or not dbg.running): return
 
-		# Read thread list from the debugger
-		dbg.debug.write("thread list")
-		dbg.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
-		matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
+		# # Read thread list from the debugger
+		# dbg.debug.write("thread list")
+		# dbg.debug.process.expect("Process\s\d*?\sstopped\r\n(.*)\(lldb\) ")
+		# matches = re.findall(r"(?:(\*)\sthread|\sthread)\s#(\d*):\stid\s=\s([0-9a-fA-FxX]*),\s([0-9a-fA=FxX]*)\s(.*?)`(.*?)(?:(?=\*\sthread)|(?=\sthread)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
 
-		# Initialize thread stack
-		for match in matches:
-			Thread(*match)
-			thread = Thread(*match)
-			self.threads[thread.index] = thread
-			self.selection = thread if thread.default else self.selection
+		# # Initialize thread stack
+		# for match in matches:
+			# Thread(*match)
+			# thread = Thread(*match)
+			# self.threads[thread.index] = thread
+			# self.selection = thread if thread.default else self.selection
 
-		# Read the backtrace for every thread
-		for index in self.threads:
-			dbg.debug.write("thread backtrace "+str(index))
-			dbg.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
-			matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
-			for match in matches:
-				self.threads[index].add_frame(Frame(*match))
+		# # Read the backtrace for every thread
+		# for index in self.threads:
+			# dbg.debug.write("thread backtrace "+str(index))
+			# dbg.debug.process.expect("\* thread.*?\r\n(.*)\(lldb\) ")
+			# matches = re.findall(r"(?:(\*)\sframe|\sframe)\s#(\d*):\s([0-9a-fA-FxX]*)\s(.*?)`(.*?)(?:(?=\*\sframe)|(?=\sframe)|\s\+\s(\d*)(?:\sat\s(\S*):(\d*))?|$)", dbg.debug.process.match.groups()[0], re.DOTALL)
+			# for match in matches:
+				# self.threads[index].add_frame(Frame(*match))
 
 	def add_thread(thread):
 		self.threads[thread.index] = thread

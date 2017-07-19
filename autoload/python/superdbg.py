@@ -50,6 +50,11 @@ class DebugTab:
 		vim.command(":enew")
 		# TODO Configure buffer to be hidden/etc
 		vim.current.buffer.name = "[DISASSEMBLY]"
+		vim.current.buffer.options['buflisted'] = False
+		vim.current.buffer.options['swapfile'] = False
+		vim.current.buffer.options['bufhidden'] = 'hide'
+		vim.current.buffer.options['buftype'] = 'nofile'
+		vim.current.buffer.options['modifiable'] = True
 		self.disasm = View()
 	
 		# Get view dimensions for proportional resizing
@@ -84,6 +89,7 @@ class DebugTab:
 		self.disasm.switch_to()
 		self.disasm.buffer[:] = None	# Clear assembly buffer
 		self.disasm.buffer.append(source)
+		del self.disasm.buffer[0]
 		vim.command(":"+str(line))
 		vim.command(":redraw")
 
@@ -94,7 +100,10 @@ class DebugTab:
 		self.backtrace_index = {}
 
 		frameLine = 1
-		vim.command(":%d _")	# Clear the buffer
+		# vim.command(":%d _")	# Clear the buffer
+		self.backtrace.switch_to()
+		vim.current.buffer.options['modifiable'] = True
+		vim.current.buffer[:] = None
 		vim.current.buffer[0] = " Bactrace: "+"alpha"
 		vim.current.buffer.append(self.backtrace.width()*"=")
 		for t in callstack.threads:
@@ -106,10 +115,12 @@ class DebugTab:
 				if(frame.default):
 					frameLine = len(vim.current.buffer)
 				if(frame.has_source()):
-					self.backtrace_index[len(vim.current.buffer)] = {'source':frame.source, 'line':frame.line, 'assembly':False}
+					self.backtrace_index[len(vim.current.buffer)] = {'source':frame.source, 'line':frame.line, 'assembly':False, 'frame':frame, 'thread':thread}
 				else:
-					self.backtrace_index[len(vim.current.buffer)] = {'assembly':True}
+					self.backtrace_index[len(vim.current.buffer)] = {'assembly':True, 'frame':frame, 'thread':thread}
 					# vim.current.buffer.append("|    |  "+frame.source+"["+str(frame.line)+"]")
+
+		vim.current.buffer.options['modifiable'] = False
 
 		# Navigate to current backtrace line, and open the source
 		vim.current.window.cursor = (frameLine, 1)
@@ -135,17 +146,18 @@ def BacktraceGo():
 	line = vim.current.window.cursor[0]
 	if line in debugtab.backtrace_index:
 		index = debugtab.backtrace_index[line]
+		debugger.thread_select(index['thread'].index)
+		debugger.frame_select(index['frame'].index)
+		debugtab.dump_backtrace()
 		if index['assembly'] is False:
 			debugtab.open_source(index['source'], index['line'])
 		else:
 			assembly = debugger.disassembly()
 			if assembly is False:
-				print("Failed to get assembly information")
-			else:
-				print("Writing to buffer")
-				debugtab.open_assembly(assembly[0], assembly[1])
+				return
+			debugtab.open_assembly(assembly[0], assembly[1])
 
-	# debugtab.go_source(debugtab.backtrace_index
+
 
 def Launch():
 	global debugger
