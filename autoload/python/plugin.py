@@ -4,7 +4,20 @@
 # Copyright (c) 2017 owl
 #
 
+# Enable module loading from current directory
+import os
+import inspect
+import sys
+directory = os.path.dirname(inspect.getfile(inspect.currentframe()))
+sys.path.append(directory)
+
+import import_lldb
+import controller_lldb
+
 def Launch():
+	pass
+
+def Run():
 	pass
 
 def Quit():
@@ -31,3 +44,5 @@ def StepInto():
 def StepOut():
 	pass
 
+def Detach():
+	pass

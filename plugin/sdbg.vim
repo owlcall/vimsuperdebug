@@ -1,7 +1,7 @@
 
-" Ensure python3 is supported
-if !has('python3')
-	echo "Python3 is not supported by vim/os, but required by superdebug"
+" Ensure python is supported
+if !has('python')
+	echo "Python is not supported by vim/os, but required by superdebug"
 	finish
 endif
 

@@ -14,14 +14,14 @@ let g:superdebug_loaded = 1
 
 " Load Python script
 if filereadable($VIMRUNTIME."/autoload/python/plugin.py")
-	py3file $VIMRUNTIME/autoload/python/plugin.py
+	pyfile $VIMRUNTIME/autoload/python/plugin.py
 else
 	" when we use pathogen for instance
 	let $CUR_DIRECTORY=expand("<sfile>:p:h")
 	echo $CUR_DIRECTORY
 
 	if filereadable($CUR_DIRECTORY."/python/plugin.py")
-		py3file $CUR_DIRECTORY/python/plugin.py
+		pyfile $CUR_DIRECTORY/python/plugin.py
 	else
 		call confirm('failed to load super debug python scripts; ensure the module is installed correctly and try again.\n', 'OK')
 		quit
@@ -35,40 +35,40 @@ function! sdbg#DBGLaunch()
 	" Open a new custom buffer
 	"below 16new
 	"redraw!
-	python3 Launch()
+	python Launch()
 endfunc
 
 function! sdbg#DBGQuit()
-	python3 Quit()
+	python Quit()
 	"TODO: Cleanup after ourselves, return to last tab/window/buffer we were in
 endfunc
 
 function! sdbg#DBGNavBacktrace()
-	python3 NavBacktrace()
+	python NavBacktrace()
 endfunc
 
 function! sdbg#DBGSetBreakpoint(source, line)
-	"python3 
+	"python 
 endfunc
 
 function! sdbg#DBGPause()
-	python3 Pause()
+	python Pause()
 endfunc
 
 function! sdbg#DBGResume()
-	python3 Resume()
+	python Resume()
 endfunc
 
 function! sdbg#DBGStepOver()
-	python3 StepOver()
+	python StepOver()
 endfunc
 
 function! sdbg#DBGStepInto()
-	python3 StepInto()
+	python StepInto()
 endfunc
 
 function! sdbg#DBGStepOut()
-	python3 StepOut()
+	python StepOut()
 endfunc
 
 
