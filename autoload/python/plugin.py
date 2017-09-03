@@ -29,9 +29,11 @@ def NavBacktrace():
 	# controller.
 	pass
 
-def Breakpoint(source="", line=""):
-	# controller.
-	pass
+def Breakpoint(source, line):
+	controller.breakpoint(source, line)
+
+def BreakpointsClear():
+	controller.breakpoints_clear()
 
 def Pause():
 	controller.pause()

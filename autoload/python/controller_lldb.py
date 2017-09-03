@@ -13,6 +13,35 @@ from model_backtrace import Model as Backtrace
 def cerr(data):
 	sys.stderr.write(data)
 
+def state_type_to_str(enum):
+	"""Returns the stateType string given an enum."""
+	if enum == lldb.eStateInvalid:
+		return "invalid"
+	elif enum == lldb.eStateUnloaded:
+		return "unloaded"
+	elif enum == lldb.eStateConnected:
+		return "connected"
+	elif enum == lldb.eStateAttaching:
+		return "attaching"
+	elif enum == lldb.eStateLaunching:
+		return "launching"
+	elif enum == lldb.eStateStopped:
+		return "stopped"
+	elif enum == lldb.eStateRunning:
+		return "running"
+	elif enum == lldb.eStateStepping:
+		return "stepping"
+	elif enum == lldb.eStateCrashed:
+		return "crashed"
+	elif enum == lldb.eStateDetached:
+		return "detached"
+	elif enum == lldb.eStateExited:
+		return "exited"
+	elif enum == lldb.eStateSuspended:
+		return "suspended"
+	else:
+		raise Exception("Unknown StateType enum")
+
 class Controller:
 	def __init__(self):
 		print("Setting up LLDB")
@@ -33,13 +62,13 @@ class Controller:
 		# Create new target (args are supplied when launching)
 		self.target = self.dbg.CreateTarget(path, None, None, True, error)
 		if not error.Success():
-			cerr("error creating target \"%s\". %s" %(program, str(error)))
+			cerr("error creating target \"%s\". %s"%(program, str(error)))
 			return
 
 		# Launch target process
 		self.process = self.target.Launch(info, error)
 		if not error.Success():
-			cerr("error launching process \"%s\". %s" %(program, str(error)))
+			cerr("error launching process \"%s\". %s"%(program, str(error)))
 			return
 
 		self.pid = self.process.GetProcessID()
@@ -122,17 +151,26 @@ class Controller:
 					frame.data = _frame.Disassemble()
 
 	def breakpoint(self, path, line):
+		if not self.target:
+			cerr("error creating breakpoint %s:%s. No target set."%(path,str(line)))
+			return
 		breakpoint = self.target.BreakpointCreateByLocation(path, line)
 		if not breakpoint:
-			cerr("error setting breakpoint.")
+			cerr("error creating breakpoint %s:%s."%(path,str(line)))
 			return
 		if not breakpoint.IsValid():
-			cerr("error setting breakpoint - breakpoint not valid")
+			cerr("error creating breakpoint - %s:%s breakpoint not valid"%(path,str(line)))
 			return
 		location = breakpoint.GetLocationAtIndex(0)
 		if not location:
 			cerr("error finding breakpoint location.")
 			return
+
+	def breakpoints_clear(self):
+		if not self.target:
+			cerr("error clearing breakpoints. No target set.")
+			return
+		self.target.DeleteAllBreakpoints()
 
 	def step_over(self):
 		if not self.process:
