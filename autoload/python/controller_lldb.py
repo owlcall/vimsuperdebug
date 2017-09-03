@@ -64,33 +64,48 @@ class Controller:
 			cerr("error pausing. No running process.")
 			return
 		self.process.Stop()
+		self.process_events(self.timeoutEvents)
 
 	def resume(self):
 		if not self.process:
 			cerr("error resuming. No running process.")
 			return
 		self.process.Continue()
+		self.process_events(self.timeoutEvents)
 
+	def backtrace(self):
+		pass
+
+	# If no path/line is sent - then we determine it from current
+	# cursor position
+	def breakpoint(self, path=None, line=None):
+		pass
 
 	def step_over(self):
 		if not self.process:
 			cerr("error stepping over. No running process.")
 			return
 		self.process.GetSelectedThread().StepOver()
+		self.process_events(self.timeoutEvents)
 
 	def step_into(self):
 		if not self.process:
 			cerr("error stepping into. No running process.")
 			return
 		self.process.GetSelectedThread().StepInto()
+		self.process_events(self.timeoutEvents)
 
 	def step_out(self):
 		if not self.process:
 			cerr("error stepping out. No running process.")
 			return
 		self.process.GetSelectedThread().StepOut()
+		self.process_events(self.timeoutEvents)
 
-	def process_events(self):
+	def refresh(self):
+		process_events(self)
+
+	def process_events(self, timeout=0):
 		if not self.process:
 			return
 		event = lldb.SBEvent()
@@ -105,8 +120,8 @@ class Controller:
 		while not done:
 			if not self.proc_listener.PeekAtNextEvent(event):
 				# If no events in queue - wait X seconds for events
-				if self.timeoutEvents > 0:
-					self.proc_listener.WaitForEvent(self.timeoutEvents, event)
+				if timeout > 0:
+					self.proc_listener.WaitForEvent(timeout, event)
 					state_new = lldb.SBProcess.GetStateFromEvent(event)
 					eventCount = eventCount + 1
 				done = not self.processListener.PeekAtNextEvent(event)

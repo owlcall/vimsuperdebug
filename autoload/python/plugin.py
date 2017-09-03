@@ -14,35 +14,44 @@ sys.path.append(directory)
 import import_lldb
 import controller_lldb
 
-def Launch():
-	pass
+global controller
 
-def Run():
-	pass
+def Launch():
+	controller = contoller_lldb.Controller()
+
+def Run(program, args=[]):
+	controller.run(program, args)
 
 def Quit():
-	pass
+	controller.quit()
 
 def NavBacktrace():
+	# controller.
 	pass
 
 def SetBreakpoint(source, line):
+	# controller.
 	pass
 
 def Pause():
-	pass
+	controller.pause()
 
 def Resume():
-	pass
+	controller.resume()
 
 def StepOver():
-	pass
+	controller.step_over()
 
 def StepInto():
-	pass
+	controller.step_into()
 
 def StepOut():
-	pass
+	controller.step_out()
+
+def Attach(pid=-1, name=""):
+	controller(pid, name)
 
 def Detach():
-	pass
+	controller.detach()
+
+
