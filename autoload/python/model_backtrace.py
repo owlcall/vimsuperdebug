@@ -6,13 +6,23 @@
 
 class Frame:
 	def __init__(self):
-		path = ""
-		data = ""		# used for assembly source (since no file exists)
-		line = 0
-		module = ""
-		name = ""		# can be function name or symbol
 		default = False
 		number = None
+
+		# Module and function/symbol information
+		module = ""
+		name = ""
+
+		# Source file information
+		path = ""
+		line = 0
+		column = 0
+
+		# Disassembly information
+		data = ""		# used for assembly source (since no file exists)
+		addressStart = ""
+		addressEnd = ""
+		addressCurrent = ""
 
 class Thread:
 	def __init__(self):

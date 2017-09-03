@@ -110,19 +110,29 @@ class Controller:
 					frame.name = _frame.GetFunctionName()
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.line = _frame.GetLineEntry().GetLine()
-
+					frame.column = _frame.GetLineEntry().GetColumn()
 				else:
 					# Function is undefined; Load module/assembly
-					frame.path = frame.module
+					# frame.path = frame.module
 					frame.name = _frame.GetSymbol().GetName()
-					frame.data = _frame.Disassemble()
+					frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
+					#TODO: get address locations for disassembly
 					frame.line = _frame.GetLineEntry().GetLine()
+					frame.column = _frame.GetLineEntry().GetColumn()
+					frame.data = _frame.Disassemble()
 
-	# If no path/line is sent - then we determine it from current
-	# cursor position
-	def breakpoint(self, path=None, line=None):
-
-		pass
+	def breakpoint(self, path, line):
+		breakpoint = self.target.BreakpointCreateByLocation(path, line)
+		if not breakpoint:
+			cerr("error setting breakpoint.")
+			return
+		if not breakpoint.IsValid():
+			cerr("error setting breakpoint - breakpoint not valid")
+			return
+		location = breakpoint.GetLocationAtIndex(0)
+		if not location:
+			cerr("error finding breakpoint location.")
+			return
 
 	def step_over(self):
 		if not self.process:
