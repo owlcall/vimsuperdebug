@@ -29,7 +29,7 @@ def NavBacktrace():
 	# controller.
 	pass
 
-def SetBreakpoint(source, line):
+def Breakpoint(source="", line=""):
 	# controller.
 	pass
 

@@ -7,6 +7,9 @@
 import sys
 import lldb
 
+# Import models which are changed by the controller
+from model_backtrace import Model as Backtrace
+
 def cerr(data):
 	sys.stderr.write(data)
 
@@ -43,13 +46,24 @@ class Controller:
 		self.proc_listener = lldb.SBListener("proc_listener")
 		self.process.GetBroadcaster().AddListener(self.proc_listener, lldb.SBProcess.eBroadcastBitStateChanged)
 
-	def attach(self, pid=-1, pname="", host=""):
+	def attach(self, pid=-1, pname=""):
 		if not pid and not pname:
 			cerr("error attaching; nothing to attach to.")
 			return
 		if self.process:
 			#TODO: enhance error message
 			cerr("error attaching to process; already attached")
+			return
+
+		error = lldb.SBError()
+		self.target = self.dbg.CreateTarget('')
+		self.proc_listener = lldb.SBListener("proc_listener")
+		if pid:
+			self.process = self.target.AttachToProcessWithID(self.proc_listener, pid, error)
+		elif pname:
+			self.process = self.target.AttachToProcessWithName(self.proc_listener, pname, False, error)
+		if not error.Success():
+			cerr("error attaching to process \"%s\". %s" %(program if program else str(pid), str(error)))
 			return
 
 	def quit(self):
@@ -74,11 +88,40 @@ class Controller:
 		self.process_events(self.timeoutEvents)
 
 	def backtrace(self):
-		pass
+		if not self.process:
+			cerr("error getting backtrace. No running process.")
+			return
+
+		threadSelected = self.process.GetSelectedThread() 
+		frameSelected = threadSelected.GetSelectedFrame()
+		for _thread in self.process:
+			thread = Thread()
+			thread.default = True if threadSelected == _thread else False
+			thread.number = _thread.GetThreadID()
+
+			for _frame in thread:
+				frame = Frame()
+				frame.default = True if frameSelected == _frame else False
+				frame.number = _frame.GetFrameID()
+				frame.module = _frame.GetModule().GetFileSpec().GetFilename()
+
+				function = _frame.GetDisplayFunctionName()
+				if function:
+					frame.name = _frame.GetFunctionName()
+					frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
+					frame.line = _frame.GetLineEntry().GetLine()
+
+				else:
+					# Function is undefined; Load module/assembly
+					frame.path = frame.module
+					frame.name = _frame.GetSymbol().GetName()
+					frame.data = _frame.Disassemble()
+					frame.line = _frame.GetLineEntry().GetLine()
 
 	# If no path/line is sent - then we determine it from current
 	# cursor position
 	def breakpoint(self, path=None, line=None):
+
 		pass
 
 	def step_over(self):

@@ -4,46 +4,23 @@
 # Copyright (c) 2017 owl
 #
 
-class Frame:
-	path = ""
-	data = ""		# used for assembly source (since no file exists)
-	line = 0
-	function = ""
-	default = False
-	number = None
-
-class Thread:
-	frames = []
-	frame_current = None
-	default = False
-	number = None
-
-class Model:
-	sources = []	# indexed by line numbers, stores frame
-	threads = []
-	thread_current = None
-
-	def clear():
-		sources = []
-		threads = []
-		thread_current = None
+from model_backtrace import Model
 
 class View:
 	link = None
-	model = None
 
 	def clear():
 		if not link: return
 		link.clear()
 
 	def render():
-		if not model: return
-		if not model.threads: return
+		if not Model: return
+		if not Model.threads: return
 
 		link.clear()
 		link.write("<Backtracke>")
 		lineNum = 0
-		for item in model.threads:
+		for item in Model.threads:
 			line = ""
 			if item.default:
 				line = line + "* "
@@ -59,10 +36,10 @@ class View:
 					line = line + "Frame #"+str(frame.number)+" "
 					line = line + frame.function+" "
 					line = line + "("+frame.path+"["+frame.line+"])"
-					model.sources[lineNum] = frame
+					Model.sources[lineNum] = frame
 
 	def info():
 		cursor = link.window.get_cursor()
-		frame = model.sources(cursor[0])
+		frame = Model.sources(cursor[0])
 		return frame
 
