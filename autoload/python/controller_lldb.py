@@ -20,6 +20,7 @@ class Controller:
 
 		self.pid = -1
 		self.proc_listener = None
+		self.timeoutEvents = 1		# Number of seconds we wait for events
 
 
 	def run(self, program, args=[]):
@@ -59,23 +60,34 @@ class Controller:
 		self.pid = -1
 
 	def pause(self, program):
-		#TODO: implement ability to interrupt process
+		if not self.process:
+			cerr("error pausing. No running process.")
+			return
+		self.process.Stop()
 
-		pass
+	def resume(self):
+		if not self.process:
+			cerr("error resuming. No running process.")
+			return
+		self.process.Continue()
+
 
 	def step_over(self):
 		if not self.process:
 			cerr("error stepping over. No running process.")
+			return
 		self.process.GetSelectedThread().StepOver()
 
 	def step_into(self):
 		if not self.process:
 			cerr("error stepping into. No running process.")
+			return
 		self.process.GetSelectedThread().StepInto()
 
 	def step_out(self):
 		if not self.process:
 			cerr("error stepping out. No running process.")
+			return
 		self.process.GetSelectedThread().StepOut()
 
 	def process_events(self):
@@ -87,16 +99,16 @@ class Controller:
 		state_new = None
 		done = False
 
-		if state == lldb.eStateInvalid or state = lldb.eStateExited or not self.proc_listener:
+		if state == lldb.eStateInvalid or state == lldb.eStateExited or not self.proc_listener:
 			pass
 
-		timeout = 1
 		while not done:
 			if not self.proc_listener.PeekAtNextEvent(event):
-				# If no events in queue - wait 1s in hopes of event showing up
-				self.proc_listener.WaitForEvent(timeout, event)
-				state_new = lldb.SBProcess.GetStateFromEvent(event)
-				eventCount = eventCount + 1
+				# If no events in queue - wait X seconds for events
+				if self.timeoutEvents > 0:
+					self.proc_listener.WaitForEvent(self.timeoutEvents, event)
+					state_new = lldb.SBProcess.GetStateFromEvent(event)
+					eventCount = eventCount + 1
 				done = not self.processListener.PeekAtNextEvent(event)
 			else:
 				# If events are in queue - process them here
