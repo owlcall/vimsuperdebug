@@ -9,24 +9,24 @@ import vim
 class Buffer:
 	def __init__(self):
 		self.vim = vim.current.buffer
-
+	
 	def switch_to(self):
 		if(vim.current.buffer.number != self.buffer.number):
 			vim.command(":buffer "+str(self.buffer.number))
 
 	def set_hidden(self, value):
-		self.vim.option['buflisted'] = value
-		self.vim.option['bufhidden'] = 'hide' if value else 'show'
+		self.vim.options['buflisted'] = value
+		self.vim.options['bufhidden'] = 'hide' if value else 'show'
 	
 	def set_readonly(self, value):
-		self.vim.option['modifiable'] = not value
+		self.vim.options['modifiable'] = not value
 
 	def set_swap(self, value):
-		self.vim.option['swapfile'] = value
+		self.vim.options['swapfile'] = value
 
-	def set_nofile(self):
-		self.vim.option['buftype'] = 'nofile'
-		self.vim.option['swapfile'] = False
+	def set_nofile(self, value):
+		self.vim.options['buftype'] = 'nofile' if value else 'file'
+		self.vim.options['swapfile'] = not value
 
 	def clear(self, line=-1):
 		if line == -1: self.vim[:] = None
@@ -41,9 +41,12 @@ class Window:
 		self.vim = vim.current.window
 		self.buffer = Buffer()
 
-	def switch_to(self):
+	def switch(self):
 		if(vim.current.window.number != self.vim.number):
 			vim.command(":"+str(self.vim.number)+' wincmd w')
+
+	def switch_to(self):
+		self.switch()
 		self.buffer.switch_to()
 	
 	def show_numbers(self, value):
@@ -60,10 +63,13 @@ class Tab:
 	def __init__(self):
 		self.vim = vim.current.tabpage
 		self.window = Window()
-
-	def switch_to(self):
+	
+	def switch(self):
 		if(vim.current.tabpage.number != self.tabpage.number):
 			vim.command(":tab "+str(self.tabpage.number))
+
+	def switch_to(self):
+		self.switch()
 		self.window.switch_to()
 
 	def tabnum(self):
