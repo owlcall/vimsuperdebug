@@ -9,6 +9,7 @@ import lldb
 
 # Import models which are changed by the controller
 from model_backtrace import Model as Backtrace
+from model_breakpoints import Breakpoint as Breakpoints
 
 def cerr(data):
 	sys.stderr.write(data)
@@ -54,20 +55,32 @@ class Controller:
 		self.proc_listener = None
 		self.timeoutEvents = 1		# Number of seconds we wait for events
 
+	def running(self):
+		return self.process != None
 
 	def run(self, program, args=[]):
 		error = lldb.SBError()
-		info = lldb.SBLaunchInfo(args.split(' '))
+		info = lldb.SBLaunchInfo(args)
+
+		if not self.dbg:
+			cerr("error creating target \"%s\". Not initialized."%(program))
+			return
 
 		# Create new target (args are supplied when launching)
-		self.target = self.dbg.CreateTarget(path, None, None, True, error)
-		if not error.Success():
+		# self.target = self.dbg.CreateTarget(program)
+		self.target = self.dbg.CreateTarget(program, None, None, True, error)
+		if not self.target or not error.Success():
 			cerr("error creating target \"%s\". %s"%(program, str(error)))
 			return
+		
+		# Initialize all the breakpoints
+		for _, group in Breakpoints.container.iteritems():
+			for _, item in group.iteritems():
+				self.breakpoint(item.source, item.line)
 
 		# Launch target process
 		self.process = self.target.Launch(info, error)
-		if not error.Success():
+		if not self.process or not error.Success():
 			cerr("error launching process \"%s\". %s"%(program, str(error)))
 			return
 
@@ -101,6 +114,7 @@ class Controller:
 		self.process = None
 		self.proc_listener = None
 		self.pid = -1
+		Breakpoints.unset_all()
 
 	def pause(self, program):
 		if not self.process:
@@ -171,6 +185,25 @@ class Controller:
 			cerr("error clearing breakpoints. No target set.")
 			return
 		self.target.DeleteAllBreakpoints()
+	
+	def select_frame(self, frame):
+		if not self.process:
+			cerr("error selecting frame. No running process.")
+			return
+		if not frame or not frame.thread:
+			cerr("error invalid frame.")
+			return
+		changed = False
+		selected_thread = self.process.GetSelectedThread()
+		if selected_thread.GetNumber() != frame.thread.number:
+			self.process.SetSelectedThreadByNumber(frame.thread.number)
+			selected_thread = self.process.GetSelectedThread()
+
+		selected_frame = selected_thread.GetSelectedFrame()
+		if selected_frame.GetNumber() != frame.number:
+			self.process.SetSelectedFrame(frame.number)
+			changed = True
+		return changed
 
 	def step_over(self):
 		if not self.process:
@@ -226,7 +259,4 @@ class Controller:
 		#TODO: interact with state_new to see how it compares to state
 		#TODO: this is where the view change could be triggered!
 		pass
-
-global controller
-controller = Controller()
 
