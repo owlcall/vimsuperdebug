@@ -8,6 +8,7 @@ class Frame:
 	def __init__(self):
 		default = False
 		number = None
+		thread = None
 
 		# Module and function/symbol information
 		module = ""
@@ -36,8 +37,9 @@ class Model:
 	threads = []
 	thread_current = None
 
-	def clear():
-		sources = []
-		threads = []
-		thread_current = None
+	@classmethod
+	def clear(c):
+		c.sources = []
+		c.threads = []
+		c.thread_current = None
 
