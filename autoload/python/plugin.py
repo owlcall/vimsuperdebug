@@ -11,7 +11,6 @@ import sys
 directory = os.path.dirname(inspect.getfile(inspect.currentframe()))
 sys.path.append(directory)
 
-import import_lldb
 import controller_lldb
 import view_backtrace
 import model_breakpoints

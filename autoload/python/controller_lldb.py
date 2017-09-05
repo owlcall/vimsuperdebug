@@ -5,6 +5,7 @@
 #
 
 import sys
+import import_lldb
 import lldb
 
 # Import models which are changed by the controller
@@ -65,6 +66,10 @@ class Controller:
 		if not self.dbg:
 			cerr("error creating target \"%s\". Not initialized."%(program))
 			return
+
+		# Prevent lldb from crashing by trying to load python files from within dSYM
+		result = lldb.SBCommandReturnObject()
+		self.commander.HandleCommand("settings set target.load-script-from-symbol-file false", result)
 
 		# Create new target (args are supplied when launching)
 		# self.target = self.dbg.CreateTarget(program)
@@ -138,12 +143,12 @@ class Controller:
 		threadSelected = self.process.GetSelectedThread() 
 		frameSelected = threadSelected.GetSelectedFrame()
 		for _thread in self.process:
-			thread = Thread()
+			thread = Backtrace.Thread()
 			thread.default = True if threadSelected == _thread else False
 			thread.number = _thread.GetThreadID()
 
 			for _frame in thread:
-				frame = Frame()
+				frame = Backtrace.Frame()
 				frame.default = True if frameSelected == _frame else False
 				frame.number = _frame.GetFrameID()
 				frame.module = _frame.GetModule().GetFileSpec().GetFilename()
