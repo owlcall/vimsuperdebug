@@ -7,8 +7,8 @@
 class Breakpoint:
 	container = {}
 	def __init__(self, source, line):
-		self.source = ""
-		self.line = 0
+		self.source = source
+		self.line = line
 		self.set = False
 
 	@classmethod
