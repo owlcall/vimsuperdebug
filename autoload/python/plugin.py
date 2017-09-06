@@ -116,11 +116,6 @@ def BacktraceNavigate():
 
 	frame = view.info()
 	controller.select_frame(frame)
-	# if not controller.select_frame(frame):
-		# print("frame not changed")
-		# return
-
-	#TODO: Check if frame changed
 
 	# First update the backtrace
 	controller.backtrace()
