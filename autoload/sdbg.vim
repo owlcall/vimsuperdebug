@@ -35,7 +35,15 @@ function! sdbg#DBGLaunch()
 	" Open a new custom buffer
 	"below 16new
 	"redraw!
+	
+	python vim.command("tabe")
+	python OpenViewSource()
+	python vim.command("split")
+	python OpenViewBacktrace()
 	python Launch()
+	python Breakpoint("main.cpp", 49)
+	python Run("/Users/owl/git/bravo/bin/bravo")
+	python Refresh()
 endfunc
 
 function! sdbg#DBGQuit()
