@@ -13,7 +13,9 @@ sys.path.append(directory)
 
 import controller_lldb
 import view_backtrace
+import view_source
 import model_breakpoints
+import model_source
 import vim
 
 global controller
@@ -40,6 +42,38 @@ def Quit():
 	global controller
 	controller.quit()
 
+def Refresh(timeout=0):
+	global controller
+	state = controller.refresh(timeout)
+	if state == "invalid":
+		# print("invalid")
+		pass
+	elif state == "unloaded":
+		print("unloaded")
+	elif state == "connected":
+		print("connected")
+	elif state == "attaching":
+		print("attaching")
+	elif state == "launching":
+		print("launching")
+	elif state == "stopped":
+		view_backtrace.View.render()
+		BacktraceNavigate()
+	elif state == "running":
+		print("running")
+	elif state == "stepping":
+		view_backtrace.View.render()
+		BacktraceNavigate()
+	elif state == "crashed":
+		view_backtrace.View.render()
+		BacktraceNavigate()
+	elif state == "detached":
+		print("detached")
+	elif state == "exited":
+		print("exited")
+	elif state == "suspended":
+		print("suspended")
+
 def OpenViewBacktrace():
 	global controller
 	view = view_backtrace.View
@@ -58,7 +92,9 @@ def OpenViewSource():
 	global controller
 	view = view_source.View
 	if not view.valid():
-		vim.initialize()
+		vim.command(":enew")
+		view.initialize()
+		view.link.tab.window.buffer.set_nofile(True)
 	else:
 		vim.command(":"+str(vim.link.tab.window.vim.number)+' wincmd w')
 
@@ -73,11 +109,15 @@ def OpenViewConsole():
 def BacktraceNavigate():
 	global controller
 	view = view_backtrace.View
-	if not view.valid():
-		return
+	if not view.valid(): return
+
 	frame = view.info()
-	if not controller.select_frame(frame):
-		return
+	controller.select_frame(frame)
+	# if not controller.select_frame(frame):
+		# print("frame not changed")
+		# return
+
+	#TODO: Check if frame changed
 
 	# First update the backtrace
 	controller.backtrace()
@@ -91,6 +131,7 @@ def BacktraceNavigate():
 	view.link.tab.switch()
 	view.link.tab.window.switch()
 	view.render()
+	Refresh(controller.timeoutEventsFast)
 
 def Breakpoint(source, line):
 	breakpoints = model_breakpoints.Breakpoint
@@ -111,29 +152,36 @@ def BreakpointsClear():
 def Pause():
 	global controller
 	controller.pause()
+	Refresh(controller.timeoutEventsFast)
 
 def Resume():
 	global controller
 	controller.resume()
+	Refresh()
 
 def StepOver():
 	global controller
 	controller.step_over()
+	Refresh(controller.timeoutEventsFast)
 
 def StepInto():
 	global controller
 	controller.step_into()
+	Refresh(controller.timeoutEventsFast)
 
 def StepOut():
 	global controller
 	controller.step_out()
+	Refresh(controller.timeoutEventsFast)
 
 def Attach(pid=-1, name=""):
 	global controller
 	controller(pid, name)
+	Refresh()
 
 def Detach():
 	global controller
 	controller.detach()
+	Refresh()
 
 
