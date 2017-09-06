@@ -97,6 +97,9 @@ def OpenViewSource():
 		view.link.tab.window.buffer.set_nofile(True)
 	else:
 		vim.command(":"+str(vim.link.tab.window.vim.number)+' wincmd w')
+	vim.command(":map <silent> <Leader>o : python StepOut()<CR>")
+	vim.command(":map <silent> <Leader>i : python StepInto()<CR>")
+	vim.command(":map <silent> <Leader>n : python StepOver()<CR>")
 
 def OpenViewVariables():
 	global controller
