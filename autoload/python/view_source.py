@@ -4,11 +4,12 @@
 # Copyright (c) 2017 owl
 #
 
+import vim
 import vim_view
 from model_source import Model
 
 class View:
-	c.link = None
+	link = None
 
 	@classmethod
 	def initialize(c):
@@ -30,10 +31,10 @@ class View:
 		if Model.path:
 			# Working with source file
 			c.link.switch_to()
-			vim.command(":e '"+Model.path+"'")
+			vim.command(":nos e "+Model.path+"")
 			vim.command(":"+str(Model.line))
 		elif Model.data:
-			c.link.siwtch_to()
+			c.link.switch_to()
 			vim.command(":enew")
 			vim.command(":"+str(Model.line))
 			vim.command(":file "+str(Model.symbol))

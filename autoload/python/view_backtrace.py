@@ -28,26 +28,40 @@ class View:
 		if not Model: return
 		if not Model.threads: return
 
+		c.link.tab.window.buffer.set_readonly(False)
 		c.link.clear()
 		c.link.write("<Backtracke>")
-		lineNum = 0
+		lineNum = 2
 		for item in Model.threads:
 			line = ""
-			if item.default:
-				line = line + "* "
+			if item.default: line = line + "*"
+			else: line = line + " "
 			line = line + "Thread #"+str(item.number)
 			lineNum = lineNum + 1
 			c.link.write(line)
 
-			if item.frames:
-				for frame in item.frames:
-					line = ""
-					if frame.default:
-						line = "* "
-					line = line + "Frame #"+str(frame.number)+" "
-					line = line + frame.function+" "
-					line = line + "("+frame.path+"["+frame.line+"])"
-					Model.sources[lineNum] = frame
+			if not item.default:
+				continue
+			# if item.frames:
+			for frame in item.frames:
+				line = "\t"
+				if frame.default:
+					line = line + "*"
+				else:
+					line = line + " "
+				line = line + "Frame #"+str(frame.number)+" "
+				line = line + frame.name+" "
+				if frame.path:
+					pathLine = "["+str(frame.line)+"]" if frame.line else ""
+					line = line + "("+frame.path+" "+pathLine+")"
+				lineNum = lineNum + 1
+				c.link.write(line)
+				if frame.default:
+					c.link.tab.window.set_cursor(lineNum,1)
+
+				Model.sources[lineNum] = frame
+				# print(lineNum, frame.path)
+		c.link.tab.window.buffer.set_readonly(True)
 
 	@classmethod
 	def info(c):
@@ -55,6 +69,8 @@ class View:
 			print("source listing to navigate")
 			return
 		cursor = c.link.tab.window.get_cursor()
+		if not cursor[0] in Model.sources:
+			return
 		frame = Model.sources[cursor[0]]
 		return frame
 
