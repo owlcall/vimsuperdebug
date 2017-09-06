@@ -11,8 +11,8 @@ class Buffer:
 		self.vim = vim.current.buffer
 	
 	def switch_to(self):
-		if(vim.current.buffer.number != self.buffer.number):
-			vim.command(":buffer "+str(self.buffer.number))
+		if(vim.current.buffer.number != self.vim.number):
+			vim.command(":buffer "+str(self.vim.number))
 
 	def set_hidden(self, value):
 		self.vim.options['buflisted'] = value
@@ -33,7 +33,11 @@ class Buffer:
 		else: self.vim[line] = ""
 	
 	def write(self, data, line=-1):
-		if line == -1: self.vim.append(data)
+		if line == -1:
+			if len(self.vim) == 0:
+				self.vim[0] = data
+			else:
+				self.vim.append(data)
 		else: self.vim[line] = data
 
 class Window:
@@ -65,8 +69,8 @@ class Tab:
 		self.window = Window()
 	
 	def switch(self):
-		if(vim.current.tabpage.number != self.tabpage.number):
-			vim.command(":tab "+str(self.tabpage.number))
+		if(vim.current.tabpage.number != self.vim.number):
+			vim.command(":tab "+str(self.vim.number))
 
 	def switch_to(self):
 		self.switch()
