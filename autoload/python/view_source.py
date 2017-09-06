@@ -37,6 +37,7 @@ class View:
 			print("rendering assembly "+str(Model.symbol))
 			c.link.switch_to()
 			vim.command(":e [asm: "+str(Model.symbol)+"]")
+			vim.command(":set syntax=asm")
 			buf = vim_view.Buffer()
 			buf.set_readonly(False)
 			buf.set_nofile(True)
