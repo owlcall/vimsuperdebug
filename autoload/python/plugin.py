@@ -96,7 +96,7 @@ def OpenViewSource():
 		view.initialize()
 		view.link.tab.window.buffer.set_nofile(True)
 	else:
-		vim.command(":"+str(vim.link.tab.window.vim.number)+' wincmd w')
+		vim.command(":"+str(view.link.tab.window.vim.number)+' wincmd w')
 	vim.command(":map <silent> <Leader>o : python StepOut()<CR>")
 	vim.command(":map <silent> <Leader>i : python StepInto()<CR>")
 	vim.command(":map <silent> <Leader>n : python StepOver()<CR>")
@@ -130,6 +130,7 @@ def BacktraceNavigate():
 	view.link.tab.window.switch()
 	view.render()
 	Refresh(controller.timeoutEventsFast)
+	btview.link.switch_to()
 
 def Breakpoint(source, line):
 	breakpoints = model_breakpoints.Breakpoint

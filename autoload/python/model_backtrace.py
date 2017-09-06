@@ -31,6 +31,7 @@ class Thread:
 		self.frame_current = None
 		self.default = False
 		self.number = None
+		self.id = 0
 
 	def frame(self):
 		frame = Frame()
@@ -42,6 +43,15 @@ class Model:
 	sources = {}	# indexed by line numbers, stores frame
 	threads = []
 	selected = None
+	expanded = []
+	navigated = -1
+
+	@classmethod
+	def fold(c, id):
+		if id in c.expanded:
+			c.expanded.remove(id)
+		else:
+			c.expanded.append(id)
 
 	@classmethod
 	def clear(c):

@@ -38,9 +38,10 @@ function! sdbg#DBGLaunch()
 	
 	python vim.command("tabe")
 	python OpenViewSource()
-	python vim.command("split")
+	python vim.command("below 16 split")
 	python OpenViewBacktrace()
 	python Launch()
+	redraw
 	python Breakpoint("main.cpp", 49)
 	python Run("/Users/owl/git/bravo/bin/bravo")
 	python Refresh()

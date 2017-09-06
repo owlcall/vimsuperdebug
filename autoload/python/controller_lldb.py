@@ -9,6 +9,7 @@ import import_lldb
 import lldb
 
 # Import models which are changed by the controller
+from model_backtrace import Thread
 from model_backtrace import Model as Backtrace
 from model_breakpoints import Breakpoint as Breakpoints
 from model_source import Model as Sources
@@ -144,12 +145,17 @@ class Controller:
 		Backtrace.clear()
 		threadSelected = self.process.GetSelectedThread() 
 		frameSelected = threadSelected.GetSelectedFrame()
+		thread_ids = []
 		for _thread in self.process:
 			thread = Backtrace.thread()
 			thread.default = True if threadSelected == _thread else False
 			thread.number = _thread.GetIndexID()
+			thread.id = _thread.GetThreadID()
 			if thread.default:
 				Backtrace.selected = thread
+				if thread.id not in Backtrace.expanded:
+					Backtrace.fold(thread.id)
+			thread_ids.append(_thread.GetThreadID())
 
 			for _frame in _thread:
 				frame = thread.frame()
@@ -164,6 +170,7 @@ class Controller:
 				frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
 				if function and _frame.GetLineEntry().GetFileSpec().GetDirectory():
 					frame.name = _frame.GetFunctionName()
+					frame.file = _frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetDirectory()+"/"+_frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.line = _frame.GetLineEntry().GetLine()
 					if not frame.name: frame.name = "<null>"
@@ -178,6 +185,11 @@ class Controller:
 						frame.data = _frame.Disassemble()
 					frame.disassembled = True
 					if not frame.name: frame.name = "<null2>"
+
+		# Cleanup disappeared threads from list
+		for expanded in Backtrace.expanded:
+			if expanded not in thread_ids:
+				Backtrace.expanded.remove(expanded)
 
 	def breakpoint(self, path, line):
 		if not self.target:
@@ -201,29 +213,37 @@ class Controller:
 			return
 		self.target.DeleteAllBreakpoints()
 	
-	def select_frame(self, frame):
+	def select_frame(self, obj):
 		if not self.process:
 			cerr("error selecting frame. No running process.")
 			return
+		if isinstance(obj, Thread):
+			Backtrace.fold(obj.id)
+			Backtrace.navigated = obj.number
+			return True
+		else:
+			Backtrace.navigated = -1
+
+		frame = obj
 		if not frame or not frame.thread:
 			cerr("error invalid frame.")
 			return
+
 		changed = False
 		selected_thread = self.process.GetSelectedThread()
 		if selected_thread.GetIndexID() != frame.thread.number:
 			self.process.SetSelectedThreadByIndexID(frame.thread.number)
 			selected_thread = self.process.GetSelectedThread()
 			changed = True
-
 		selected_frame = selected_thread.GetSelectedFrame()
 		if selected_frame.GetFrameID() != frame.number or changed:
 			selected_thread.SetSelectedFrame(frame.number)
 			changed = True
 
-		frame = Backtrace.selected.selected
-
 		if changed:
 			self.backtrace()
+		frame = Backtrace.selected.selected
+
 		Sources.clear()
 		if not frame.disassembled:
 			Sources.path = frame.path

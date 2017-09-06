@@ -34,7 +34,6 @@ class View:
 			vim.command(":nos e "+Model.path+"")
 			vim.command(":"+str(Model.line))
 		else:
-			print("rendering assembly "+str(Model.symbol))
 			c.link.switch_to()
 			vim.command(":e [asm: "+str(Model.symbol)+"]")
 			vim.command(":set syntax=asm")

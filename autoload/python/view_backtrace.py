@@ -32,6 +32,7 @@ class View:
 		c.link.clear()
 		c.link.write("<Backtracke>")
 		lineNum = 2
+		lineNav = -1
 		for item in Model.threads:
 			line = ""
 			if item.default: line = line + "*"
@@ -39,10 +40,13 @@ class View:
 			line = line + "Thread #"+str(item.number)
 			lineNum = lineNum + 1
 			c.link.write(line)
+			Model.sources[lineNum] = item
 
-			if not item.default:
+			if Model.navigated == item.number:
+				lineNav = lineNum
+
+			if not item.default and item.id not in Model.expanded:
 				continue
-			# if item.frames:
 			for frame in item.frames:
 				line = "\t"
 				if frame.default:
@@ -53,14 +57,16 @@ class View:
 				line = line + frame.name+" "
 				if frame.path:
 					pathLine = "["+str(frame.line)+"]" if frame.line else ""
-					line = line + "("+frame.path+" "+pathLine+")"
+					line = line + "("+frame.file+" "+pathLine+")"
 				lineNum = lineNum + 1
 				c.link.write(line)
 				if frame.default:
 					c.link.tab.window.set_cursor(lineNum,1)
-
 				Model.sources[lineNum] = frame
-				# print(lineNum, frame.path)
+
+		if lineNav > 0:
+			c.link.tab.window.set_cursor(lineNav, 1)
+
 		c.link.tab.window.buffer.set_readonly(True)
 
 	@classmethod
