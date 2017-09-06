@@ -33,13 +33,17 @@ class View:
 			c.link.switch_to()
 			vim.command(":nos e "+Model.path+"")
 			vim.command(":"+str(Model.line))
-		elif Model.data:
+		else:
+			print("rendering assembly "+str(Model.symbol))
 			c.link.switch_to()
-			vim.command(":enew")
+			vim.command(":e [asm: "+str(Model.symbol)+"]")
+			buf = vim_view.Buffer()
+			buf.set_readonly(False)
+			buf.set_nofile(True)
+			buf.vim[:] = None
+			for item in Model.data.split("\n"):
+				buf.vim.append(item)
 			vim.command(":"+str(Model.line))
-			vim.command(":file "+str(Model.symbol))
-			c.link.write(Model.data)
-			c.link.tab.window.buffer.set_readonly(True)
-			c.link.tab.window.buffer.set_nofile(True)
+			buf.set_readonly(True)
 
 

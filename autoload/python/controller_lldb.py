@@ -148,6 +148,8 @@ class Controller:
 			thread = Backtrace.thread()
 			thread.default = True if threadSelected == _thread else False
 			thread.number = _thread.GetIndexID()
+			if thread.default:
+				Backtrace.selected = thread
 
 			for _frame in _thread:
 				frame = thread.frame()
@@ -155,26 +157,25 @@ class Controller:
 				frame.number = _frame.GetFrameID()
 				frame.module = _frame.GetModule().GetFileSpec().GetFilename()
 
+				if frame.default:
+					thread.selected = frame
+
 				function = _frame.GetDisplayFunctionName()
 				frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
 				if function and _frame.GetLineEntry().GetFileSpec().GetDirectory():
-					# print("detected function")
 					frame.name = _frame.GetFunctionName()
-					# print("path: "+str(_frame.GetLineEntry().GetFileSpec().GetDirectory()))
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetDirectory()+"/"+_frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.line = _frame.GetLineEntry().GetLine()
-					# frame.column = _frame.GetLineEntry().GetColumn()
 					if not frame.name: frame.name = "<null>"
 					frame.disassembled = False
 				else:
 					# Function is undefined; Load module/assembly
-					# frame.path = frame.module
 					frame.name = _frame.GetSymbol().GetName()
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
 					#TODO: get address locations for disassembly
 					frame.line = _frame.GetLineEntry().GetLine()
-					# frame.column = _frame.GetLineEntry().GetColumn()
-					# frame.data = _frame.Disassemble()
+					if frame.default:
+						frame.data = _frame.Disassemble()
 					frame.disassembled = True
 					if not frame.name: frame.name = "<null2>"
 
@@ -219,14 +220,19 @@ class Controller:
 			selected_thread.SetSelectedFrame(frame.number)
 			changed = True
 
+		frame = Backtrace.selected.selected
+
+		if changed:
+			self.backtrace()
 		Sources.clear()
 		if not frame.disassembled:
 			Sources.path = frame.path
 			Sources.line = frame.line
 		else:
+			Sources.symbol = frame.name
 			Sources.data = frame.data
 			Sources.line = 1
-		# return changed
+		return changed
 
 	def step_over(self):
 		if not self.process:

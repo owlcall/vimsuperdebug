@@ -111,15 +111,15 @@ def OpenViewConsole():
 
 def BacktraceNavigate():
 	global controller
-	view = view_backtrace.View
-	if not view.valid(): return
+	btview = view_backtrace.View
+	if not btview.valid(): return
 
-	frame = view.info()
-	controller.select_frame(frame)
+	frame = btview.info()
+	changed = controller.select_frame(frame)
 
 	# First update the backtrace
-	controller.backtrace()
-	view.render()
+	#TODO: if changed and view is empty - render
+	btview.render()
 
 	# Now open the source as appropriate for the frame
 	view = view_source.View

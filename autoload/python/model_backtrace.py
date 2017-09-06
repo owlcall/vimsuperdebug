@@ -18,7 +18,6 @@ class Frame:
 		# Source file information
 		self.path = ""
 		self.line = 0
-		self.column = 0
 
 		# Disassembly information
 		self.data = ""		# used for assembly source (since no file exists)
@@ -42,13 +41,13 @@ class Thread:
 class Model:
 	sources = {}	# indexed by line numbers, stores frame
 	threads = []
-	thread_current = None
+	selected = None
 
 	@classmethod
 	def clear(c):
 		c.sources = {}
 		c.threads = []
-		c.thread_current = None
+		c.selected = None
 	
 	@classmethod
 	def thread(c):

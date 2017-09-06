@@ -34,7 +34,7 @@ class Buffer:
 	
 	def write(self, data, line=-1):
 		if line == -1:
-			if len(self.vim) == 0:
+			if type(data) is not list and len(self.vim) == 0:
 				self.vim[0] = data
 			else:
 				self.vim.append(data)
