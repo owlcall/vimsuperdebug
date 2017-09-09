@@ -28,9 +28,9 @@ else
 	endif
 endif
 
-autocmd VimLeavePre * call sdbg#DBGQuit()
+autocmd VimLeavePre * call SDebug#Quit()
 
-function! sdbg#DBGLaunch()
+function! SDebug#Launch()
 	"TODO: Save information about the current buffer
 	" Open a new custom buffer
 	"below 16new
@@ -47,36 +47,40 @@ function! sdbg#DBGLaunch()
 	python Refresh()
 endfunc
 
-function! sdbg#DBGQuit()
+function! SDebug#Quit()
 	python Quit()
 	"TODO: Cleanup after ourselves, return to last tab/window/buffer we were in
 endfunc
 
-function! sdbg#DBGNavBacktrace()
+function! SDebug#NavBacktrace()
 	python NavBacktrace()
 endfunc
 
-function! sdbg#DBGSetBreakpoint(source, line)
+function! SDebug#SetBreakpoint(source, line)
 	"python 
 endfunc
 
-function! sdbg#DBGPause()
+function! SDebug#SetBreakpointHere()
+	python Breakpoint()
+endfunc
+
+function! SDebug#Pause()
 	python Pause()
 endfunc
 
-function! sdbg#DBGResume()
+function! SDebug#Resume()
 	python Resume()
 endfunc
 
-function! sdbg#DBGStepOver()
+function! SDebug#StepOver()
 	python StepOver()
 endfunc
 
-function! sdbg#DBGStepInto()
+function! SDebug#StepInto()
 	python StepInto()
 endfunc
 
-function! sdbg#DBGStepOut()
+function! SDebug#StepOut()
 	python StepOut()
 endfunc
 

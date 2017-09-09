@@ -18,6 +18,7 @@ import model_breakpoints
 import model_source
 import vim
 
+# print("Full path: "+str(vim.eval("echo('%:p')")))
 global controller
 controller = None
 
@@ -132,7 +133,11 @@ def BacktraceNavigate():
 	Refresh(controller.timeoutEventsFast)
 	btview.link.switch_to()
 
-def Breakpoint(source, line):
+# Create breakpoint
+# Supply source/line, or leave blank to create breakpoint under cursor
+def Breakpoint(source='', line=''):
+	# if not source or not line:
+		# source = vim.current.buffer.
 	breakpoints = model_breakpoints.Breakpoint
 	breakpoints.add(source, line)
 

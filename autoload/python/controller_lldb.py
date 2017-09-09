@@ -102,8 +102,7 @@ class Controller:
 			cerr("error attaching; nothing to attach to.")
 			return
 		if self.process:
-			#TODO: enhance error message
-			cerr("error attaching to process; already attached")
+			cerr("error attaching to process \"%s\"; already attached."%(pname if pname else str(pid)))
 			return
 
 		error = lldb.SBError()
@@ -357,7 +356,8 @@ class Controller:
 					continue
 				done = not self.proc_listener.PeekAtNextEvent(event)
 
-		# print("state changed from %s to %s"%(state_type_to_str(state), state_type_to_str(state_new)))
-		# View changes bubble up from here. First, they're handled on the controller scale in the refresh() function. Then, code bubbles up to plugin.py where the state change is handled on the view's level
+		# View changes bubble up from here. First, they're handled on the controller
+		# level in the refresh() function. Then, code bubbles up to plugin.py where
+		# the state change is handled on the view level (MVC)
 		return state_type_to_str(state_new)
 
