@@ -4,15 +4,19 @@
 # Copyright (c) 2017 owl
 #
 
-import sys
-import import_lldb
-import lldb
-
 # Import models which are changed by the controller
-from model_backtrace import Thread
-from model_backtrace import Model as Backtrace
-from model_breakpoints import Breakpoint as Breakpoints
-from model_source import Model as Sources
+# from python.model.backtrace import Thread
+# from model_backtrace import Model as model_bt.Model
+# from model_breakpoints import Breakpoint as Breakpoints
+# from model_source import Model as model_src.Model
+
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import import_lldb, lldb
+
+import model.backtrace as model_bt
+import model.breakpoint as model_bp
+import model.source as model_src
 
 def cerr(data):
 	sys.stderr.write(data)
@@ -83,7 +87,7 @@ class Controller:
 			return
 		
 		# Initialize all the breakpoints
-		for _, group in Breakpoints.container.iteritems():
+		for _, group in model_bp.Model.container.iteritems():
 			for _, item in group.iteritems():
 				self.breakpoint(item.source, item.line)
 
@@ -122,7 +126,7 @@ class Controller:
 		self.process = None
 		self.proc_listener = None
 		self.pid = -1
-		Breakpoints.unset_all()
+		model_bp.Model.unset_all()
 
 	def pause(self, program):
 		if not self.process:
@@ -141,19 +145,19 @@ class Controller:
 			cerr("error getting backtrace. No running process.")
 			return
 
-		Backtrace.clear()
+		model_bt.Model.clear()
 		threadSelected = self.process.GetSelectedThread() 
 		frameSelected = threadSelected.GetSelectedFrame()
 		thread_ids = []
 		for _thread in self.process:
-			thread = Backtrace.thread()
+			thread = model_bt.Model.thread()
 			thread.default = True if threadSelected == _thread else False
 			thread.number = _thread.GetIndexID()
 			thread.id = _thread.GetThreadID()
 			if thread.default:
-				Backtrace.selected = thread
-				if thread.id not in Backtrace.expanded:
-					Backtrace.fold(thread.id)
+				model_bt.Model.selected = thread
+				if thread.id not in model_bt.Model.expanded:
+					model_bt.Model.fold(thread.id)
 			thread_ids.append(_thread.GetThreadID())
 
 			for _frame in _thread:
@@ -186,9 +190,9 @@ class Controller:
 					if not frame.name: frame.name = "<null2>"
 
 		# Cleanup disappeared threads from list
-		for expanded in Backtrace.expanded:
+		for expanded in model_bt.Model.expanded:
 			if expanded not in thread_ids:
-				Backtrace.expanded.remove(expanded)
+				model_bt.Model.expanded.remove(expanded)
 
 	def breakpoint(self, path, line):
 		if not self.target:
@@ -216,12 +220,12 @@ class Controller:
 		if not self.process:
 			cerr("error selecting frame. No running process.")
 			return
-		if isinstance(obj, Thread):
-			Backtrace.fold(obj.id)
-			Backtrace.navigated = obj.number
+		if isinstance(obj, model_bt.Thread):
+			model_bt.Model.fold(obj.id)
+			model_bt.Model.navigated = obj.number
 			return True
 		else:
-			Backtrace.navigated = -1
+			model_bt.Model.navigated = -1
 
 		frame = obj
 		if not frame or not frame.thread:
@@ -241,16 +245,16 @@ class Controller:
 
 		if changed:
 			self.backtrace()
-		frame = Backtrace.selected.selected
+		frame = model_bt.Model.selected.selected
 
-		Sources.clear()
+		model_src.Model.clear()
 		if not frame.disassembled:
-			Sources.path = frame.path
-			Sources.line = frame.line
+			model_src.Model.path = frame.path
+			model_src.Model.line = frame.line
 		else:
-			Sources.symbol = frame.name
-			Sources.data = frame.data
-			Sources.line = 1
+			model_src.Model.symbol = frame.name
+			model_src.Model.data = frame.data
+			model_src.Model.line = 1
 		return changed
 
 	def step_over(self):

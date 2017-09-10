@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# vim_view.py 
+# view.py 
 # Copyright (c) 2017 owl
 #
 

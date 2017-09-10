@@ -11,20 +11,25 @@ import sys
 directory = os.path.dirname(inspect.getfile(inspect.currentframe()))
 sys.path.append(directory)
 
-import controller_lldb
-import view_backtrace
-import view_source
-import model_breakpoints
-import model_source
 import vim
 
+import model.backtrace as model_bt
+import model.breakpoint as model_bp
+import model.source as model_src
+
+import view.backtrace as view_bt
+#import view.breakpoint as view_bp
+import view.source as view_src
+
+import controller.lldbc
+
 # print("Full path: "+str(vim.eval("echo('%:p')")))
-global controller
-controller = None
+global ctrl
+ctrl = None
 
 def Launch():
-	global controller
-	controller = controller_lldb.Controller()
+	global ctrl
+	ctrl = controller.lldbc.Controller()
 
 	# if debug tab does not exist - open new tab
 	# split vertical for variables
@@ -36,16 +41,16 @@ def Launch():
 
 
 def Run(program, args=[]):
-	global controller
-	controller.run(program, args)
+	global ctrl
+	ctrl.run(program, args)
 
 def Quit():
-	global controller
-	controller.quit()
+	global ctrl
+	ctrl.quit()
 
 def Refresh(timeout=0):
-	global controller
-	state = controller.refresh(timeout)
+	global ctrl
+	state = ctrl.refresh(timeout)
 	if state == "invalid":
 		# print("invalid")
 		pass
@@ -58,15 +63,15 @@ def Refresh(timeout=0):
 	elif state == "launching":
 		print("launching")
 	elif state == "stopped":
-		view_backtrace.View.render()
+		view_bt.View.render(model_bt.Model)
 		BacktraceNavigate()
 	elif state == "running":
 		print("running")
 	elif state == "stepping":
-		view_backtrace.View.render()
+		view_bt.View.render(model_bt.Model)
 		BacktraceNavigate()
 	elif state == "crashed":
-		view_backtrace.View.render()
+		view_bt.View.render(model_bt.Model)
 		BacktraceNavigate()
 	elif state == "detached":
 		print("detached")
@@ -76,116 +81,115 @@ def Refresh(timeout=0):
 		print("suspended")
 
 def OpenViewBacktrace():
-	global controller
-	view = view_backtrace.View
-	if not view.valid():
+	global ctrl
+	_view = view_bt.View
+	if not _view.valid():
 		vim.command(":enew")
 		vim.command(":silent file [BACKTRACE]")
 		vim.command(":map <silent> <buffer> <Enter> : python BacktraceNavigate()<CR>")
-		view.initialize()
-		view.link.tab.window.buffer.set_readonly(True)
-		view.link.tab.window.buffer.set_nofile(True)
+		_view.initialize()
+		_view.link.tab.window.buffer.set_readonly(True)
+		_view.link.tab.window.buffer.set_nofile(True)
 	else:
 		# View exists; Simply open view's buffer here
-		vim.command(":b"+str(view.link.tab.window.buffer.vim.number))
+		vim.command(":b"+str(_view.link.tab.window.buffer.vim.number))
 
 def OpenViewSource():
-	global controller
-	view = view_source.View
-	if not view.valid():
+	global ctrl
+	_view = view_src.View
+	if not _view.valid():
 		vim.command(":enew")
-		view.initialize()
-		view.link.tab.window.buffer.set_nofile(True)
+		_view.initialize()
+		_view.link.tab.window.buffer.set_nofile(True)
 	else:
-		vim.command(":"+str(view.link.tab.window.vim.number)+' wincmd w')
+		vim.command(":"+str(_view.link.tab.window.vim.number)+' wincmd w')
 	vim.command(":map <silent> <Leader>o : python StepOut()<CR>")
 	vim.command(":map <silent> <Leader>i : python StepInto()<CR>")
 	vim.command(":map <silent> <Leader>n : python StepOver()<CR>")
 
 def OpenViewVariables():
-	global controller
+	global ctrl
 	pass
 
 def OpenViewConsole():
-	global controller
+	global ctrl
 	pass
 
 def BacktraceNavigate():
-	global controller
-	btview = view_backtrace.View
-	if not btview.valid(): return
+	global ctrl
+	if not view_bt.View.valid(): return
 
-	frame = btview.info()
-	changed = controller.select_frame(frame)
+	frame = view_bt.View.info(model_bt.Model)
+	changed = ctrl.select_frame(frame)
 
 	# First update the backtrace
 	#TODO: if changed and view is empty - render
-	btview.render()
+	view_bt.View.render(model_bt.Model)
 
 	# Now open the source as appropriate for the frame
-	view = view_source.View
-	if not view.valid():
+	_view = view_src.View
+	if not _view.valid():
 		print("error source window undefined")
 		return
-	view.link.tab.switch()
-	view.link.tab.window.switch()
-	view.render()
-	Refresh(controller.timeoutEventsFast)
-	btview.link.switch_to()
+	_view.link.tab.switch()
+	_view.link.tab.window.switch()
+	_view.render(model_src.Model)
+	Refresh(ctrl.timeoutEventsFast)
+	view_bt.View.link.switch_to()
 
 # Create breakpoint
 # Supply source/line, or leave blank to create breakpoint under cursor
 def Breakpoint(source='', line=''):
 	# if not source or not line:
 		# source = vim.current.buffer.
-	breakpoints = model_breakpoints.Breakpoint
+	breakpoints = model_bp.Model
 	breakpoints.add(source, line)
 
-	global controller
-	if controller.running():
-		controller.breakpoint(source, line)
+	global ctrl
+	if ctrl.running():
+		ctrl.breakpoint(source, line)
 
 def BreakpointsClear():
-	global controller
-	controller.breakpoints_clear()
+	global ctrl
+	ctrl.breakpoints_clear()
 
-	breakpoints = model_breakpoints.Breakpoint
+	breakpoints = model_bp.Model
 	for _,item in breakpoints.container.iteritems():
 		item.set = False
 
 def Pause():
-	global controller
-	controller.pause()
-	Refresh(controller.timeoutEventsFast)
+	global ctrl
+	ctrl.pause()
+	Refresh(ctrl.timeoutEventsFast)
 
 def Resume():
-	global controller
-	controller.resume()
+	global ctrl
+	ctrl.resume()
 	Refresh()
 
 def StepOver():
-	global controller
-	controller.step_over()
-	Refresh(controller.timeoutEventsFast)
+	global ctrl
+	ctrl.step_over()
+	Refresh(ctrl.timeoutEventsFast)
 
 def StepInto():
-	global controller
-	controller.step_into()
-	Refresh(controller.timeoutEventsFast)
+	global ctrl
+	ctrl.step_into()
+	Refresh(ctrl.timeoutEventsFast)
 
 def StepOut():
-	global controller
-	controller.step_out()
-	Refresh(controller.timeoutEventsFast)
+	global ctrl
+	ctrl.step_out()
+	Refresh(ctrl.timeoutEventsFast)
 
 def Attach(pid=-1, name=""):
-	global controller
-	controller(pid, name)
+	global ctrl
+	ctrl.attach(pid, name)
 	Refresh()
 
 def Detach():
-	global controller
-	controller.detach()
+	global ctrl
+	ctrl.detach()
 	Refresh()
 
 

@@ -5,15 +5,14 @@
 #
 
 import vim
-import vim_view
-from model_source import Model
+import view
 
 class View:
 	link = None
 
 	@classmethod
 	def initialize(c):
-		c.link = vim_view.Link()
+		c.link = view.Link()
 
 	@classmethod
 	def valid(c):
@@ -24,26 +23,27 @@ class View:
 		if not c.link: return
 		c.link.clear()
 
+	# Render the source model
 	@classmethod
-	def render(c):
+	def render(c, model):
 		if not c.link: return
 
-		if Model.path:
+		if model.path:
 			# Working with source file
 			c.link.switch_to()
-			vim.command(":nos e "+Model.path+"")
-			vim.command(":"+str(Model.line))
+			vim.command(":nos e "+model.path+"")
+			vim.command(":"+str(model.line))
 		else:
 			c.link.switch_to()
-			vim.command(":e [asm: "+str(Model.symbol)+"]")
-			vim.command(":set syntax=asm")
-			buf = vim_view.Buffer()
+			vim.command(":e [asm: "+str(model.symbol)+"]")
+			buf = view.Buffer()
 			buf.set_readonly(False)
 			buf.set_nofile(True)
 			buf.vim[:] = None
-			for item in Model.data.split("\n"):
+			for item in model.data.split("\n"):
 				buf.vim.append(item)
-			vim.command(":"+str(Model.line))
 			buf.set_readonly(True)
+			vim.command(":set syntax=asm")
+			vim.command(":"+str(model.line))
 
 

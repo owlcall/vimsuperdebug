@@ -4,15 +4,14 @@
 # Copyright (c) 2017 owl
 #
 
-import vim_view
-from model_backtrace import Model
+import view
 
 class View:
 	link = None
 
 	@classmethod
 	def initialize(c):
-		c.link = vim_view.Link()
+		c.link = view.Link()
 
 	@classmethod
 	def valid(c):
@@ -24,28 +23,28 @@ class View:
 		c.link.clear()
 
 	@classmethod
-	def render(c):
-		if not Model: return
-		if not Model.threads: return
+	def render(c, model):
+		if not model: return
+		if not model.threads: return
 
 		c.link.tab.window.buffer.set_readonly(False)
 		c.link.clear()
 		c.link.write("<Backtracke>")
 		lineNum = 2
 		lineNav = -1
-		for item in Model.threads:
+		for item in model.threads:
 			line = ""
 			if item.default: line = line + "*"
 			else: line = line + " "
 			line = line + "Thread #"+str(item.number)
 			lineNum = lineNum + 1
 			c.link.write(line)
-			Model.sources[lineNum] = item
+			model.sources[lineNum] = item
 
-			if Model.navigated == item.number:
+			if model.navigated == item.number:
 				lineNav = lineNum
 
-			if not item.default and item.id not in Model.expanded:
+			if not item.default and item.id not in model.expanded:
 				continue
 			for frame in item.frames:
 				line = "\t"
@@ -62,7 +61,7 @@ class View:
 				c.link.write(line)
 				if frame.default:
 					c.link.tab.window.set_cursor(lineNum,1)
-				Model.sources[lineNum] = frame
+				model.sources[lineNum] = frame
 
 		if lineNav > 0:
 			c.link.tab.window.set_cursor(lineNav, 1)
@@ -70,13 +69,13 @@ class View:
 		c.link.tab.window.buffer.set_readonly(True)
 
 	@classmethod
-	def info(c):
-		if not Model.sources:
+	def info(c, model):
+		if not model.sources:
 			print("source listing to navigate")
 			return
 		cursor = c.link.tab.window.get_cursor()
-		if not cursor[0] in Model.sources:
+		if not cursor[0] in model.sources:
 			return
-		frame = Model.sources[cursor[0]]
+		frame = model.sources[cursor[0]]
 		return frame
 

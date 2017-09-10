@@ -11,6 +11,9 @@ class Breakpoint:
 		self.line = line
 		self.set = False
 
+class Model:
+	container = {}
+
 	@classmethod
 	def add(cls, source, line):
 		if not source in cls.container:
