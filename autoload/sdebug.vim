@@ -56,10 +56,6 @@ function! SDebug#NavBacktrace()
 	python NavBacktrace()
 endfunc
 
-"function! SDebug#SetBreakpoint(source, line)
-	""python 
-"endfunc
-
 function! SDebug#BreakpointToggle()
 	python BreakpointToggle()
 endfunc

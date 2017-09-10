@@ -140,6 +140,17 @@ def BacktraceNavigate():
 # Create breakpoint
 # Supply source/line, or leave blank to create breakpoint under cursor
 def BreakpointToggle(source='', line=''):
+	for _ in vim.current.buffer.options:
+		print(_)
+	print(vim.current.buffer)
+	if not source or not line:
+		source = vim.current.buffer.name
+		line = vim.current.window.cursor[0]
+		print("AUTO: "+str(source)+":"+str(line))
+
+		if modified:
+			controller.lldbc.cerr("can't set breakpoint on modified buffer. Please save your changes")
+
 	global ctrl
 	bp = model_bp.Model.get(source, line)
 	if not bp:

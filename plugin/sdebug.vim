@@ -7,6 +7,7 @@ endif
 
 command! SDebugLaunch call SDebug#Launch()
 command! SDebugQuit call SDebug#Quit()
-command! SDebugBreakpointSet call SDebug#SetBreakpoint()
+command! SDebugBreakpointToggle call SDebug#BreakpointToggle()
 
 nnoremap <Leader>s :SDebugLaunch<CR>
+nnoremap <Leader>\ :SDebugBreakpointToggle<CR>
