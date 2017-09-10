@@ -42,7 +42,7 @@ function! SDebug#Launch()
 	python OpenViewBacktrace()
 	python Launch()
 	redraw
-	python Breakpoint("main.cpp", 49)
+	python BreakpointToggle("main.cpp", 49)
 	python Run("/Users/owl/git/bravo/bin/bravo")
 	python Refresh()
 endfunc
@@ -56,12 +56,12 @@ function! SDebug#NavBacktrace()
 	python NavBacktrace()
 endfunc
 
-function! SDebug#SetBreakpoint(source, line)
-	"python 
-endfunc
+"function! SDebug#SetBreakpoint(source, line)
+	""python 
+"endfunc
 
-function! SDebug#SetBreakpointHere()
-	python Breakpoint()
+function! SDebug#BreakpointToggle()
+	python BreakpointToggle()
 endfunc
 
 function! SDebug#Pause()

@@ -5,7 +5,6 @@
 #
 
 class Breakpoint:
-	container = {}
 	def __init__(self, source, line):
 		self.source = source
 		self.line = line
@@ -13,6 +12,12 @@ class Breakpoint:
 
 class Model:
 	container = {}
+
+	@classmethod
+	def get(cls, source, line):
+		if not source in cls.container or not line in cls.container[source]:
+			return None
+		return cls.container[source][line]
 
 	@classmethod
 	def add(cls, source, line):

@@ -139,22 +139,22 @@ def BacktraceNavigate():
 
 # Create breakpoint
 # Supply source/line, or leave blank to create breakpoint under cursor
-def Breakpoint(source='', line=''):
-	# if not source or not line:
-		# source = vim.current.buffer.
-	breakpoints = model_bp.Model
-	breakpoints.add(source, line)
-
+def BreakpointToggle(source='', line=''):
 	global ctrl
-	if ctrl.running():
-		ctrl.breakpoint(source, line)
+	bp = model_bp.Model.get(source, line)
+	if not bp:
+		model_bp.Model.add(source, line)
+		if ctrl.running(): ctrl.breakpoint(source, line)
+	else:
+		model_bp.Model.delete(source, line)
+		if ctrl.running(): ctrl.breakpoint(source, line)
+		#TODO: here we need to clear this breakpoint from any active files
 
 def BreakpointsClear():
 	global ctrl
 	ctrl.breakpoints_clear()
 
-	breakpoints = model_bp.Model
-	for _,item in breakpoints.container.iteritems():
+	for _,item in model_bp.Model.container.iteritems():
 		item.set = False
 
 def Pause():
