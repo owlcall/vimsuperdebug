@@ -18,6 +18,7 @@ class Frame:
 		# Source file information
 		self.path = ""
 		self.line = 0
+		self.column = 0
 
 		# Disassembly information
 		self.data = ""		# used for assembly source (since no file exists)
@@ -37,6 +38,7 @@ class Thread:
 		frame = Frame()
 		frame.thread = self
 		self.frames.append(frame)
+		Model.changed = True
 		return frame
 
 class Model:
@@ -45,6 +47,7 @@ class Model:
 	selected = None
 	expanded = []
 	navigated = -1
+	changed = True
 
 	@classmethod
 	def fold(c, id):
@@ -52,6 +55,7 @@ class Model:
 			c.expanded.remove(id)
 		else:
 			c.expanded.append(id)
+		c.changed = True
 
 	@classmethod
 	def clear(c, total=False):
@@ -63,10 +67,12 @@ class Model:
 		if total:
 			c.expanded = []
 			c.navigated = -1
+		c.changed = True
 	
 	@classmethod
 	def thread(c):
 		thread = Thread()
 		c.threads.append(thread)
+		c.changed = True
 		return thread
 

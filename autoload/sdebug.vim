@@ -42,15 +42,12 @@ else
 endif
 
 autocmd VimLeavePre * call SDebug#Quit()
-autocmd BufEnter * call SDebug#BufferLoad2()
+autocmd BufEnter * call SDebug#BufferLoad()
 "python BufferLoad()
 
 " Process buffer loading
-function! SDebug#BufferLoad2()
-	"echo "bload2"
-	"python print "test2"
-	"call SDebugSignlistCurrent()
-	python BufferLoadLa()
+function! SDebug#BufferLoad()
+	python BufferLoad()
 endfunc
 
 function! SDebug#Launch()

@@ -12,7 +12,7 @@ class Buffer:
 	
 	def switch_to(self):
 		if(vim.current.buffer.number != self.vim.number):
-			vim.command(":buffer "+str(self.vim.number))
+			vim.command(":silent buffer "+str(self.vim.number))
 
 	def set_hidden(self, value):
 		self.vim.options['buflisted'] = value
@@ -49,7 +49,7 @@ class Window:
 
 	def switch(self):
 		if(vim.current.window.number != self.vim.number):
-			cmd = ":"+str(self.vim.number)+" wincmd w"
+			cmd = ":silent "+str(self.vim.number)+" wincmd w"
 			vim.command(cmd)
 
 	def switch_to(self):
@@ -73,7 +73,7 @@ class Tab:
 	
 	def switch(self):
 		if(vim.current.tabpage.number != self.vim.number):
-			vim.command(":tab "+str(self.vim.number))
+			vim.command(":silent tab "+str(self.vim.number))
 
 	def switch_to(self):
 		self.switch()
@@ -93,6 +93,10 @@ class Link:
 	def switch_to(self):
 		self.tab.switch_to()
 	
+	def switch_to_window(self):
+		self.tab.switch()
+		self.tab.window.switch()
+	
 	def width(self):
 		return int(vim.eval("winwidth('"+str(self.tab.winnum())+"')"))
 
@@ -100,7 +104,7 @@ class Link:
 		return int(vim.eval("winheight('"+str(self.tab.winnum())+"')"))
 
 	def refresh(self):
-		vim.command(":redraw")
+		vim.command(":silent redraw")
 	
 	def write(self, data, line=-1):
 		self.tab.window.buffer.write(data, line)

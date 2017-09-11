@@ -4,17 +4,24 @@
 # Copyright (c) 2017 owl
 #
 
+import vim
 import view
 
 class View:
 	link = None
+	model = None
 	line_frame = 1
 	line_thread = 1
 	line_current = 1
 
 	@classmethod
-	def initialize(c):
+	def initialize(c, model):
+		vim.command(":silent e [BACKTRACE]")
+		vim.command(":nmap <silent> <buffer> <Enter> : python BacktraceNavigate()<CR>")
 		c.link = view.Link()
+		c.model = model
+		c.link.tab.window.buffer.set_readonly(True)
+		c.link.tab.window.buffer.set_nofile(True)
 
 	@classmethod
 	def valid(c):
@@ -30,20 +37,26 @@ class View:
 	
 	@classmethod
 	def reset_cursor(c):
+		if not c.link: return
 		c.link.tab.window.set_cursor(c.line_frame, 1)
 
 	@classmethod
-	def render(c, model):
-		if not model: return
-		if not model.threads: return
+	def render(c):
+		if not c.link: return
+		if not c.model: return
+		if not c.model.threads: return
+		if not c.model.changed:
+			return
+		c.model.changed = False
 
+		c.link.switch_to()
 		c.link.tab.window.buffer.set_readonly(False)
 		c.link.clear()
 		c.link.write("<Backtracke>")
 		lineNum = 2
 		lineNav = -1
 		# Render every thread, and selected/unfolded threads' frames
-		for item in model.threads:
+		for item in c.model.threads:
 			line = ""
 			if item.default:
 				line = line + "*"
@@ -55,13 +68,13 @@ class View:
 			c.link.write(line)
 
 			# Update model source index for thread folding
-			model.sources[lineNum] = item
+			c.model.sources[lineNum] = item
 
-			if model.navigated == item.number:
+			if c.model.navigated == item.number:
 				lineNav = lineNum
 
 			# If thread not selected, and not expanded - don't render frames
-			if not item.default and item.id not in model.expanded:
+			if not item.default and item.id not in c.model.expanded:
 				continue
 			# Render every frame in thread item
 			for frame in item.frames:
@@ -82,7 +95,7 @@ class View:
 					c.link.tab.window.set_cursor(lineNum,1)
 
 				# Update model source index for backtrace navigation
-				model.sources[lineNum] = frame
+				c.model.sources[lineNum] = frame
 
 		# Select current backtrace line, and mark it readonly
 		if lineNav >= 0:
@@ -93,12 +106,13 @@ class View:
 	# Return thread/frame object from the source index
 	# TODO: move this into model, indexed by line cursor
 	@classmethod
-	def info(c, model):
-		if not model.sources:
-			return
+	def info(c):
+		if not c.link: return
+		if not c.model: return
+		if not c.model.sources: return
 		cursor = c.link.tab.window.get_cursor()
-		if not cursor[0] in model.sources:
+		if not cursor[0] in c.model.sources:
 			return
-		frame = model.sources[cursor[0]]
+		frame = c.model.sources[cursor[0]]
 		return frame
 

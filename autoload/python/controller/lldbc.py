@@ -176,6 +176,7 @@ class Controller:
 					frame.file = _frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetDirectory()+"/"+_frame.GetLineEntry().GetFileSpec().GetFilename()
 					frame.line = _frame.GetLineEntry().GetLine()
+					frame.column = _frame.GetLineEntry().GetColumn()-1
 					if not frame.name: frame.name = "<null>"
 					frame.disassembled = False
 				else:
@@ -237,7 +238,7 @@ class Controller:
 			cerr("error selecting frame; no running process.")
 			return
 		if isinstance(obj, model_bt.Thread):
-			cerr("not a thread")
+			cerr("error selecting frame; not a frame")
 			return
 		else:
 			model_bt.Model.navigated = -1
@@ -259,21 +260,26 @@ class Controller:
 			selected_frame = selected_thread.GetSelectedFrame()
 			changed = True
 
-		if changed:
+		if changed or (not model_src.Model.path and not model_src.Model.data):
 			self.backtrace()
+			self.update_source()
 		frame = model_bt.Model.selected.selected
 		assert(frame.number == selected_frame.GetFrameID())
 		assert(frame.thread.id == selected_thread.GetThreadID())
 
+		return changed
+
+	def update_source(self):
+		frame = model_bt.Model.selected.selected
 		model_src.Model.clear()
 		if not frame.disassembled:
 			model_src.Model.path = frame.path
 			model_src.Model.line = frame.line
+			model_src.Model.column = frame.column
 		else:
 			model_src.Model.symbol = frame.name
 			model_src.Model.data = frame.data
 			model_src.Model.line = 1
-		return changed
 
 	def step_over(self):
 		if not self.process:
@@ -302,49 +308,60 @@ class Controller:
 			self.process.GetSelectedThread().StepOut()
 			self.operation = "stepping"
 
+	def state(self):
+		return state_type_to_str(self.process.GetState())
+
 	def refresh(self, timeout=0, nesting=0):
 
 		# The re-setting of the selected thread is absolutely neccessary
 		# because lldb otherwise begins to misbehave when stepping outside
 		# of the main thread
 		tid = self.process.GetSelectedThread().GetThreadID()
-		state = self.process_events(timeout)
-		self.process.SetSelectedThreadByID(tid)
+		for _ in range(5):
+			state = self.process_events(timeout)
+			if self.process.GetSelectedThread().GetThreadID() != tid:
+				self.process.SetSelectedThreadByID(tid)
 
 		# Ensure that we don't get stuck with infinite recursion
-		if nesting > 1: pass
+		if nesting > 3: pass
 
 		if state == "invalid":
+			print(state)
 			if self.operation == "stepping":
 				state = self.refresh(timeout, nesting+1)
 		elif state == "unloaded":
-			print("unloaded")
+			print(state)
 		elif state == "connected":
-			print("connected")
+			print(state)
 		elif state == "attaching":
-			print("attaching")
+			print(state)
 		elif state == "launching":
-			print("launching")
+			print(state)
 		elif state == "stopped":
+			# state = self.refresh(timeout, nesting+1)
+			# print(state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "running":
+			# print(state)
 			if self.operation == "stepping":
 				state = self.refresh(timeout, nesting+1)
 			else:
-				print("running")
+				print(state)
 		elif state == "stepping":
+			print(state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "crashed":
+			print(state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "detached":
-			print("detached")
+			print(state)
 		elif state == "exited":
-			print("exited")
+			print(state)
 		elif state == "suspended":
-			print("suspended")
+			print(state)
 		return state
 
 	def process_events(self, timeout=0):
@@ -366,7 +383,7 @@ class Controller:
 			elapsed = time.time()*1000.0
 			if not self.proc_listener.PeekAtNextEvent(event):
 				if elapsed - start < timeout:
-					time.sleep(0.05)
+					time.sleep(0.1)
 				else:
 					done = True
 				# If no events in queue - wait X seconds for events

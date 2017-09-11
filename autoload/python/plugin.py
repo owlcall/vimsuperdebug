@@ -24,7 +24,7 @@ import view.source as view_src
 import controller.lldbc
 
 VBP_NAME = "sdebug_bp"
-vim.command('sign define %s text=BP texthl=Search'%(VBP_NAME)) #linehl=Search
+vim.command('silent sign define %s text=BP texthl=Search'%(VBP_NAME)) #linehl=Search
 
 # print("Full path: "+str(vim.eval("echo('%:p')")))
 global ctrl
@@ -33,17 +33,19 @@ ctrl = None
 def cerr(data):
 	sys.stderr.write(data)
 
-def BufferLoadLa():
-	path = vim.eval('expand("%:p")')
-	if not os.path.exists(path):
-		return
-	signlist = {}
+def BufferLoad():
 	import re
+	# Ensure the expanded buffer path is valid/exists
+	path = vim.eval('expand("%:p")')
+	if not os.path.exists(path): return
+
+	# Parse existing signs to ensure we don't add duplicates
 	rex = re.compile(r'line=(\d+)\s+id=(\d+)\s+name=(\S+)', re.MULTILINE)
 	text = vim.eval('SDebugSignlistCurrent()')
 	if not text:
-		sys.stderr.write("no signs to load")
+		cerr("no signs to load")
 		return
+	signlist = {}
 	for match in rex.finditer(text):
 		line, id, name = match.groups()
 		if name == VBP_NAME:
@@ -52,39 +54,32 @@ def BufferLoadLa():
 	# Attempt to load breakpoint signs into this file
 	# Duplicate breakpoint signs are ignored
 	for src,lines in model_bp.Model.container.iteritems():
-		if path != src and os.path.basename(path) != src:
-			continue
-		if os.path.basename(path) == src:
-			src = path
-		for line,bp in lines.iteritems():
-			if str(line) in signlist:
-				continue
-			vim.command('sign place %i line=%i name=%s file=%s'%(line,line,VBP_NAME,path))
-	pass
+		if os.path.basename(path) != src and src != path: continue
+		if os.path.basename(path) == src: src = path
+		# Update each breakpoint line in current file as a BP sign
+		for ln, bp in lines.iteritems():
+			if str(ln) in signlist: continue
+			# Must provide full path file as argument, otherwise errors
+			vim.command('silent sign place %i line=%i name=%s file=%s'%(ln,ln,VBP_NAME,path))
 
-
+# Initialize debugger and bootstrap the controller
 def Launch():
 	global ctrl
 	ctrl = controller.lldbc.Controller()
 
-	# if debug tab does not exist - open new tab
-	# split vertical for variables
-	# split right horizontally for program output
-	# split left horizontally for backtrace
-
-	# When opening new buffers, windows and tabs - add appropriate automated
-	# callbacks to deinitialize the view component
-
-
+# Run the program being debugged
 def Run(program, args=[]):
 	global ctrl
 	ctrl.run(program, args)
 
+# Quit debug controller (and associated process)
 def Quit():
 	global ctrl
 	ctrl.quit()
 
+# Refresh debugger state
 def Refresh(timeout=0):
+
 	global ctrl
 	state = ctrl.refresh(timeout)
 	if state == "invalid":
@@ -99,20 +94,21 @@ def Refresh(timeout=0):
 	elif state == "launching":
 		print("launching")
 	elif state == "stopped":
-		view_bt.View.render(model_bt.Model)
+		print(state)
+		view_bt.View.render()
 		view_bt.View.reset_cursor()
 		BacktraceNavigate()
 	elif state == "running":
-		print(state)
+		# print(state)
 		view_bt.View.clear()
 	elif state == "stepping":
 		print(state)
-		view_bt.View.render(model_bt.Model)
+		view_bt.View.render()
 		view_bt.View.reset_cursor()
 		BacktraceNavigate()
 	elif state == "crashed":
 		print(state)
-		view_bt.View.render(model_bt.Model)
+		view_bt.View.render()
 		view_bt.View.reset_cursor()
 		BacktraceNavigate()
 	elif state == "detached":
@@ -124,32 +120,19 @@ def Refresh(timeout=0):
 	elif state == "suspended":
 		print("suspended")
 
+# Initilize/select backtrace view
 def OpenViewBacktrace():
-	global ctrl
-	_view = view_bt.View
-	if not _view.valid():
-		vim.command(":enew")
-		vim.command(":silent file [BACKTRACE]")
-		vim.command(":map <silent> <buffer> <Enter> : python BacktraceNavigate()<CR>")
-		_view.initialize()
-		_view.link.tab.window.buffer.set_readonly(True)
-		_view.link.tab.window.buffer.set_nofile(True)
+	if not view_bt.View.valid():
+		view_bt.View.initialize(model_bt.Model)
 	else:
-		# View exists; Simply open view's buffer here
-		vim.command(":b"+str(_view.link.tab.window.buffer.vim.number))
+		view_bt.View.switch_to()
 
+# Initilize/select source view
 def OpenViewSource():
-	global ctrl
-	_view = view_src.View
-	if not _view.valid():
-		vim.command(":enew")
-		_view.initialize()
-		_view.link.tab.window.buffer.set_nofile(True)
+	if not view_src.View.valid():
+		view_src.View.initialize(model_src.Model)
 	else:
-		vim.command(":"+str(_view.link.tab.window.vim.number)+' wincmd w')
-	vim.command(":map <silent> <Leader>o : python StepOut()<CR>")
-	vim.command(":map <silent> <Leader>i : python StepInto()<CR>")
-	vim.command(":map <silent> <Leader>n : python StepOver()<CR>")
+		view_src.View.switch_to_window()
 
 def OpenViewVariables():
 	global ctrl
@@ -159,39 +142,32 @@ def OpenViewConsole():
 	global ctrl
 	pass
 
+# Open frame under cursor in backtrace view
 def BacktraceNavigate():
-	if not view_bt.View.valid(): return
-
-	# Get object at current line, can be frame - but can also be thread fold
-	frame = view_bt.View.info(model_bt.Model)
+	global ctrl
+	# Get line selection from the backtrace view
+	frame = view_bt.View.info()
 	if not frame:
 		Refresh(ctrl.timeoutEvents)
 		return
 
-	# Attempt to navigate to frame
 	if isinstance(frame, model_bt.Frame):
-		# Change frame, update the view
+		# Switch frames to the one under cursor
 		changed = ctrl.select_frame(frame)
-		view_bt.View.render(model_bt.Model)
 
-		# Open and render frame source, refresh the controller
-		_view = view_src.View
-		if not _view.valid():
-			print("error opening frame; source window undefined")
-			return
-		_view.link.tab.switch()
-		_view.link.tab.window.switch()
-		_view.render(model_src.Model)
-		# Refresh(ctrl.timeoutEventsFast)
+		# Update backtrace/source models and views
+		ctrl.update_source()
+		view_bt.View.render()
+		view_src.View.render()
 	else:
+		# Attempt to fold the thread
 		model_bt.Model.fold(frame.id)
 		model_bt.Model.navigated = frame.number
-		view_bt.View.render(model_bt.Model)
-		view_bt.View.link.switch_to()
+		view_bt.View.render()
 
-# Create breakpoint
-# Supply source/line, or leave blank to create breakpoint under cursor
+# Toggle breakpoint
 def BreakpointToggle(source='', line=''):
+	global ctrl
 	# Detect source/line if necessary from current buffer/window
 	if not source or not line:
 		source = vim.eval("expand('%:p')")
@@ -211,14 +187,14 @@ def BreakpointToggle(source='', line=''):
 		model_bp.Model.add(source, line)
 		if ctrl.running(): ctrl.breakpoint(source, line)
 		try:
-			vim.command('sign place %i line=%i name=%s file=%s'%(line,line,VBP_NAME,source))
+			vim.command('silent sign place %i line=%i name=%s file=%s'%(line,line,VBP_NAME,source))
 		except vim.error as err:
 			print err
 		print("added breakpoint in %s line %i"%(source,line))
 	else:
 		if ctrl.running(): ctrl.breakpoint_delete(bp.source, bp.line)
 		model_bp.Model.delete(bp.source, bp.line)
-		vim.command('sign unplace %i file=%s'%(line,source))
+		vim.command('silent sign unplace %i file=%s'%(line,source))
 		print("deleted breakpoint from %s line %i"%(source,line))
 
 def BreakpointsClear():
@@ -228,7 +204,7 @@ def BreakpointsClear():
 	for _,item in model_bp.Model.container.iteritems():
 		item.set = False
 	#TODO: delete signs for our breakpoints
-	
+
 
 def Pause():
 	global ctrl
@@ -244,16 +220,22 @@ def StepOver():
 	global ctrl
 	ctrl.step_over()
 	Refresh(ctrl.timeoutEventsFast)
+	ctrl.update_source()
+	view_src.View.render()
 
 def StepInto():
 	global ctrl
 	ctrl.step_into()
 	Refresh(ctrl.timeoutEventsFast)
+	ctrl.update_source()
+	view_src.View.render()
 
 def StepOut():
 	global ctrl
 	ctrl.step_out()
 	Refresh(ctrl.timeoutEventsFast)
+	ctrl.update_source()
+	view_src.View.render()
 
 def Attach(pid=-1, name=""):
 	global ctrl
