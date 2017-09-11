@@ -54,10 +54,15 @@ class Model:
 			c.expanded.append(id)
 
 	@classmethod
-	def clear(c):
+	def clear(c, total=False):
 		c.sources = {}
 		c.threads = []
 		c.selected = None
+		# If not total - then we maintain folds while navigating backtrace 
+		# total is used when program exits and backtrace must be clear
+		if total:
+			c.expanded = []
+			c.navigated = -1
 	
 	@classmethod
 	def thread(c):

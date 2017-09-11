@@ -29,7 +29,9 @@ class Buffer:
 		self.vim.options['swapfile'] = not value
 
 	def clear(self, line=-1):
-		if line == -1: self.vim[:] = None
+		if line == -1:
+			self.set_readonly(False)
+			self.vim[:] = None
 		else: self.vim[line] = ""
 	
 	def write(self, data, line=-1):
@@ -47,7 +49,8 @@ class Window:
 
 	def switch(self):
 		if(vim.current.window.number != self.vim.number):
-			vim.command(":"+str(self.vim.number)+' wincmd w')
+			cmd = ":"+str(self.vim.number)+" wincmd w"
+			vim.command(cmd)
 
 	def switch_to(self):
 		self.switch()

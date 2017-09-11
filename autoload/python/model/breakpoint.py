@@ -9,6 +9,7 @@ class Breakpoint:
 		self.source = source
 		self.line = line
 		self.set = False
+		self.id = -1
 
 class Model:
 	container = {}

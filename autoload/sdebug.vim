@@ -9,8 +9,21 @@ endif
 " Internal variables
 let g:superdebug_loaded = 1
 
-" User-customizable variables
+" Return the full sign list
+function! SDebugSignlist()
+	redir => signlist
+	silent sign place
+	redir END
+	return signlist
+endfunc
 
+" Return the sign list for current file
+function! SDebugSignlistCurrent()
+	redir => signlist
+	execute(':silent sign place file='.expand("%:p"))
+	redir END
+	return signlist
+endfunc
 
 " Load Python script
 if filereadable($VIMRUNTIME."/autoload/python/plugin.py")
@@ -29,6 +42,16 @@ else
 endif
 
 autocmd VimLeavePre * call SDebug#Quit()
+autocmd BufEnter * call SDebug#BufferLoad2()
+"python BufferLoad()
+
+" Process buffer loading
+function! SDebug#BufferLoad2()
+	"echo "bload2"
+	"python print "test2"
+	"call SDebugSignlistCurrent()
+	python BufferLoadLa()
+endfunc
 
 function! SDebug#Launch()
 	"TODO: Save information about the current buffer
@@ -58,6 +81,10 @@ endfunc
 
 function! SDebug#BreakpointToggle()
 	python BreakpointToggle()
+endfunc
+
+function! SDebug#BufferLoad()
+	python BufferLoad()
 endfunc
 
 function! SDebug#Pause()

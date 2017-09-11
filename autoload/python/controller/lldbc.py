@@ -72,7 +72,7 @@ class Controller:
 		info = lldb.SBLaunchInfo(args)
 
 		if not self.dbg:
-			cerr("error creating target \"%s\". Not initialized."%(program))
+			cerr("error creating target \"%s\"; not initialized."%(program))
 			return
 
 		# Prevent lldb from crashing by trying to load python files from within dSYM
@@ -130,19 +130,19 @@ class Controller:
 
 	def pause(self, program):
 		if not self.process:
-			cerr("error pausing. No running process.")
+			cerr("error pausing; no running process.")
 			return
 		self.process.Stop()
 
 	def resume(self):
 		if not self.process:
-			cerr("error resuming. No running process.")
+			cerr("error resuming; no running process.")
 			return
 		self.process.Continue()
 
 	def backtrace(self):
 		if not self.process:
-			cerr("error getting backtrace. No running process.")
+			cerr("error getting backtrace; no running process.")
 			return
 
 		model_bt.Model.clear()
@@ -196,34 +196,49 @@ class Controller:
 
 	def breakpoint(self, path, line):
 		if not self.target:
-			cerr("error creating breakpoint %s:%s. No target set."%(path,str(line)))
+			cerr("error creating breakpoint %s:%s; no target set."%(path,str(line)))
 			return
 		breakpoint = self.target.BreakpointCreateByLocation(path, line)
 		if not breakpoint:
 			cerr("error creating breakpoint %s:%s."%(path,str(line)))
 			return
 		if not breakpoint.IsValid():
-			cerr("error creating breakpoint - %s:%s breakpoint not valid"%(path,str(line)))
+			cerr("error creating breakpoint %s:%s; breakpoint not valid"%(path,str(line)))
 			return
-		location = breakpoint.GetLocationAtIndex(0)
-		if not location:
-			cerr("error finding breakpoint location.")
+		bp = model_bp.Model.get(path, line)
+		if not bp:
+			cerr("error creating breakpoint %s:%s; breakpoint is null"%(path,str(line)))
 			return
+		bp.id = breakpoint.GetID()
+		# location = breakpoint.GetLocationAtIndex(0)
+		# if not location:
+			# cerr("error finding breakpoint location.")
+			# return
+	
+	def breakpoint_delete(self, path, line):
+		if not self.target:
+			cerr("error deleting breakpoint %s:%s; no target set."%(path,str(line)))
+			return
+		bp = model_bp.Model.get(path, line)
+		if not bp:
+			cerr("error deleting breakpoint %s:%s; breakpoint is null"%(path,str(line)))
+			return
+		self.target.BreakpointDelete(bp.id)
+		
 
 	def breakpoints_clear(self):
 		if not self.target:
-			cerr("error clearing breakpoints. No target set.")
+			cerr("error clearing breakpoints; no target set.")
 			return
 		self.target.DeleteAllBreakpoints()
 	
 	def select_frame(self, obj):
 		if not self.process:
-			cerr("error selecting frame. No running process.")
+			cerr("error selecting frame; no running process.")
 			return
 		if isinstance(obj, model_bt.Thread):
-			model_bt.Model.fold(obj.id)
-			model_bt.Model.navigated = obj.number
-			return True
+			cerr("not a thread")
+			return
 		else:
 			model_bt.Model.navigated = -1
 
@@ -234,18 +249,21 @@ class Controller:
 
 		changed = False
 		selected_thread = self.process.GetSelectedThread()
-		if selected_thread.GetIndexID() != frame.thread.number:
-			self.process.SetSelectedThreadByIndexID(frame.thread.number)
+		if selected_thread.GetThreadID() != frame.thread.id:
+			self.process.SetSelectedThreadByID(frame.thread.id)
 			selected_thread = self.process.GetSelectedThread()
 			changed = True
 		selected_frame = selected_thread.GetSelectedFrame()
 		if selected_frame.GetFrameID() != frame.number or changed:
 			selected_thread.SetSelectedFrame(frame.number)
+			selected_frame = selected_thread.GetSelectedFrame()
 			changed = True
 
 		if changed:
 			self.backtrace()
 		frame = model_bt.Model.selected.selected
+		assert(frame.number == selected_frame.GetFrameID())
+		assert(frame.thread.id == selected_thread.GetThreadID())
 
 		model_src.Model.clear()
 		if not frame.disassembled:
@@ -259,40 +277,46 @@ class Controller:
 
 	def step_over(self):
 		if not self.process:
-			cerr("error stepping over. No running process.")
+			cerr("error stepping over; no running process.")
 			return
-		self.process.GetSelectedThread().StepOver()
 		state = state_type_to_str(self.process.GetState())
 		if state in ["stepping","stopped","crashed"]:
-			print("initiating stepping...")
+			self.process.GetSelectedThread().StepOver()
 			self.operation = "stepping"
 
 	def step_into(self):
 		if not self.process:
-			cerr("error stepping into. No running process.")
+			cerr("error stepping into; no running process.")
 			return
-		self.process.GetSelectedThread().StepInto()
 		state = state_type_to_str(self.process.GetState())
 		if state in ["stepping","stopped","crashed"]:
-			print("initiating stepping...")
+			self.process.GetSelectedThread().StepInto()
 			self.operation = "stepping"
 
 	def step_out(self):
 		if not self.process:
-			cerr("error stepping out. No running process.")
+			cerr("error stepping out; no running process.")
 			return
-		self.process.GetSelectedThread().StepOut()
 		state = state_type_to_str(self.process.GetState())
 		if state in ["stepping","stopped","crashed"]:
-			print("initiating stepping...")
+			self.process.GetSelectedThread().StepOut()
 			self.operation = "stepping"
 
-	def refresh(self, timeout=0):
+	def refresh(self, timeout=0, nesting=0):
+
+		# The re-setting of the selected thread is absolutely neccessary
+		# because lldb otherwise begins to misbehave when stepping outside
+		# of the main thread
+		tid = self.process.GetSelectedThread().GetThreadID()
 		state = self.process_events(timeout)
+		self.process.SetSelectedThreadByID(tid)
+
+		# Ensure that we don't get stuck with infinite recursion
+		if nesting > 1: pass
+
 		if state == "invalid":
 			if self.operation == "stepping":
-				state = self.refresh(timeout)
-			pass
+				state = self.refresh(timeout, nesting+1)
 		elif state == "unloaded":
 			print("unloaded")
 		elif state == "connected":
@@ -306,7 +330,7 @@ class Controller:
 			self.backtrace()
 		elif state == "running":
 			if self.operation == "stepping":
-				state = self.refresh(timeout)
+				state = self.refresh(timeout, nesting+1)
 			else:
 				print("running")
 		elif state == "stepping":
@@ -329,7 +353,7 @@ class Controller:
 		event = lldb.SBEvent()
 		eventCount = 0
 		state = self.process.GetState()
-		state_new = lldb.eStateInvalid
+		state_new = self.process.GetState()
 		done = False
 
 		if state == lldb.eStateInvalid or state == lldb.eStateExited or not self.proc_listener:

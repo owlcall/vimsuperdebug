@@ -35,6 +35,8 @@ class View:
 			vim.command(":"+str(model.line))
 		else:
 			c.link.switch_to()
+			if not model.symbol:
+				return
 			vim.command(":e [asm: "+str(model.symbol)+"]")
 			buf = view.Buffer()
 			buf.set_readonly(False)
