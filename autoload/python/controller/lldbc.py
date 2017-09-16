@@ -185,6 +185,8 @@ class Controller:
 					frame.path = _frame.GetLineEntry().GetFileSpec().GetFilename()
 					#TODO: get address locations for disassembly
 					frame.line = _frame.GetLineEntry().GetLine()
+					# frame.address = _frame.GetPCAddress()
+					# print(str(frame.address))
 					if frame.default:
 						frame.data = _frame.Disassemble()
 					frame.disassembled = True
@@ -253,33 +255,29 @@ class Controller:
 		if selected_thread.GetThreadID() != frame.thread.id:
 			self.process.SetSelectedThreadByID(frame.thread.id)
 			selected_thread = self.process.GetSelectedThread()
+			assert(selected_thread.IsValid())
 			changed = True
 		selected_frame = selected_thread.GetSelectedFrame()
+		assert(selected_frame.IsValid())
 		if selected_frame.GetFrameID() != frame.number or changed:
 			selected_thread.SetSelectedFrame(frame.number)
 			selected_frame = selected_thread.GetSelectedFrame()
+			assert(selected_frame.IsValid())
+			print(selected_frame.GetFrameID())
 			changed = True
 
 		if changed or (not model_src.Model.path and not model_src.Model.data):
 			self.backtrace()
 			self.update_source()
-		frame = model_bt.Model.selected.selected
-		assert(frame.number == selected_frame.GetFrameID())
-		assert(frame.thread.id == selected_thread.GetThreadID())
-
 		return changed
 
 	def update_source(self):
 		frame = model_bt.Model.selected.selected
 		model_src.Model.clear()
 		if not frame.disassembled:
-			model_src.Model.path = frame.path
-			model_src.Model.line = frame.line
-			model_src.Model.column = frame.column
+			model_src.Model.set_source(frame.path, frame.line, frame.column)
 		else:
-			model_src.Model.symbol = frame.name
-			model_src.Model.data = frame.data
-			model_src.Model.line = 1
+			model_src.Model.set_disasm(frame.name, frame.data, frame.line)
 
 	def step_over(self):
 		if not self.process:

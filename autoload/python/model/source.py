@@ -22,14 +22,14 @@ class Model:
 		c.symbol = ""
 
 	@classmethod
-	def set_sourcce(path, line, column):
+	def set_source(c, path, line, column):
 		c.path = path
 		c.line = line
 		c.column = column
 		c.changed = True
 
 	@classmethod
-	def set_disasm(symbol, data, line):
+	def set_disasm(c, symbol, data, line):
 		c.symbol = symbol
 		c.data = data
 		c.line = line
