@@ -53,6 +53,7 @@ def state_type_to_str(enum):
 class Controller:
 	def __init__(self):
 		self.dbg = lldb.SBDebugger.Create()
+		self.dbg.Initialize()
 		self.commander = self.dbg.GetCommandInterpreter()
 		self.target = None
 		self.process = None
@@ -80,7 +81,6 @@ class Controller:
 		self.commander.HandleCommand("settings set target.load-script-from-symbol-file false", result)
 
 		# Create new target (args are supplied when launching)
-		# self.target = self.dbg.CreateTarget(program)
 		self.target = self.dbg.CreateTarget(program, None, None, True, error)
 		if not self.target or not error.Success():
 			cerr("error creating target \"%s\". %s"%(program, str(error)))
@@ -89,16 +89,15 @@ class Controller:
 		# Initialize all the breakpoints
 		for _, group in model_bp.Model.container.iteritems():
 			for _, item in group.iteritems():
-				self.breakpoint(item.source, item.line)
+				self.breakpoint_add(item.source, item.line)
 
 		# Launch target process
 		self.process = self.target.Launch(info, error)
 		if not self.process or not error.Success():
 			cerr("error launching process \"%s\". %s"%(program, str(error)))
 			return
-
 		self.pid = self.process.GetProcessID()
-		self.proc_listener = lldb.SBListener("proc_listener")
+		self.proc_listener = lldb.SBListener("process_event_listener")
 		self.process.GetBroadcaster().AddListener(self.proc_listener, lldb.SBProcess.eBroadcastBitStateChanged)
 
 	def attach(self, pid=-1, pname=""):
@@ -111,7 +110,7 @@ class Controller:
 
 		error = lldb.SBError()
 		self.target = self.dbg.CreateTarget('')
-		self.proc_listener = lldb.SBListener("proc_listener")
+		self.proc_listener = lldb.SBListener("process_event_listener")
 		if pid:
 			self.process = self.target.AttachToProcessWithID(self.proc_listener, pid, error)
 		elif pname:
@@ -132,13 +131,18 @@ class Controller:
 		if not self.process:
 			cerr("error pausing; no running process.")
 			return
-		self.process.Stop()
+		if state in ["running"]:
+			self.process.Stop()
+			self.operatoin = "pause"
 
 	def resume(self):
 		if not self.process:
 			cerr("error resuming; no running process.")
 			return
-		self.process.Continue()
+		state = self.state()
+		if state in ["stopped","suspended"]:
+			self.process.Continue()
+			self.operation = "continue"
 
 	def backtrace(self):
 		if not self.process:
@@ -197,7 +201,7 @@ class Controller:
 			if expanded not in thread_ids:
 				model_bt.Model.expanded.remove(expanded)
 
-	def breakpoint(self, path, line):
+	def breakpoint_add(self, path, line):
 		if not self.target:
 			cerr("error creating breakpoint %s:%s; no target set."%(path,str(line)))
 			return
@@ -263,7 +267,6 @@ class Controller:
 			selected_thread.SetSelectedFrame(frame.number)
 			selected_frame = selected_thread.GetSelectedFrame()
 			assert(selected_frame.IsValid())
-			print(selected_frame.GetFrameID())
 			changed = True
 
 		if changed or (not model_src.Model.path and not model_src.Model.data):
@@ -283,8 +286,8 @@ class Controller:
 		if not self.process:
 			cerr("error stepping over; no running process.")
 			return
-		state = state_type_to_str(self.process.GetState())
-		if state in ["stepping","stopped","crashed"]:
+		state = self.state()
+		if state in ["stopped"]:
 			self.process.GetSelectedThread().StepOver()
 			self.operation = "stepping"
 
@@ -292,8 +295,8 @@ class Controller:
 		if not self.process:
 			cerr("error stepping into; no running process.")
 			return
-		state = state_type_to_str(self.process.GetState())
-		if state in ["stepping","stopped","crashed"]:
+		state = self.state()
+		if state in ["stopped"]:
 			self.process.GetSelectedThread().StepInto()
 			self.operation = "stepping"
 
@@ -301,8 +304,8 @@ class Controller:
 		if not self.process:
 			cerr("error stepping out; no running process.")
 			return
-		state = state_type_to_str(self.process.GetState())
-		if state in ["stepping","stopped","crashed"]:
+		state = self.state()
+		if state in ["stopped"]:
 			self.process.GetSelectedThread().StepOut()
 			self.operation = "stepping"
 
@@ -310,56 +313,59 @@ class Controller:
 		return state_type_to_str(self.process.GetState())
 
 	def refresh(self, timeout=0, nesting=0):
+		if nesting > 3: pass
 
 		# The re-setting of the selected thread is absolutely neccessary
 		# because lldb otherwise begins to misbehave when stepping outside
 		# of the main thread
+		#FIXME: This may be my mistake. I need to ensure we don't step unless
+		# we're in a stopped state
 		tid = self.process.GetSelectedThread().GetThreadID()
-		for _ in range(5):
-			state = self.process_events(timeout)
-			if self.process.GetSelectedThread().GetThreadID() != tid:
-				self.process.SetSelectedThreadByID(tid)
-
-		# Ensure that we don't get stuck with infinite recursion
-		if nesting > 3: pass
+		# for _ in range(5):
+		state = self.process_events(timeout)
+		# if state == "unknown": return
+		# if self.process.GetSelectedThread().GetThreadID() != tid:
+			# self.process.SetSelectedThreadByID(tid)
+		if state == "unknown":
+			return state
 
 		if state == "invalid":
-			print(state)
-			if self.operation == "stepping":
-				state = self.refresh(timeout, nesting+1)
+			print('r:'+state)
+			# return state
+			# if self.operation == "stepping":
+				# state = self.refresh(timeout, nesting+1)
+				# if not state: state = "stepping"
 		elif state == "unloaded":
-			print(state)
+			print('r:'+state)
 		elif state == "connected":
-			print(state)
+			print('r:'+state)
 		elif state == "attaching":
-			print(state)
+			print('r:'+state)
 		elif state == "launching":
-			print(state)
+			print('r:'+state)
 		elif state == "stopped":
-			# state = self.refresh(timeout, nesting+1)
-			# print(state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "running":
-			# print(state)
+			print('r:'+state)
 			if self.operation == "stepping":
 				state = self.refresh(timeout, nesting+1)
 			else:
-				print(state)
+				print('r:'+state)
 		elif state == "stepping":
-			print(state)
+			print('r:'+state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "crashed":
-			print(state)
+			print('r:'+state)
 			self.operation = ""
 			self.backtrace()
 		elif state == "detached":
-			print(state)
+			print('r:'+state)
 		elif state == "exited":
-			print(state)
+			print('r:'+state)
 		elif state == "suspended":
-			print(state)
+			print('r:'+state)
 		return state
 
 	def process_events(self, timeout=0):
@@ -368,16 +374,15 @@ class Controller:
 		event = lldb.SBEvent()
 		eventCount = 0
 		state = self.process.GetState()
-		state_new = self.process.GetState()
+		state_new = ''
 		done = False
 
-		if state == lldb.eStateInvalid or state == lldb.eStateExited or not self.proc_listener:
-		# if state == lldb.eStateExited or not self.proc_listener:
+		if state == lldb.eStateExited or not self.proc_listener:
 			pass
 
 		import time;
 		start = time.time()*1000.0
-		while not done:
+		while not done and self.proc_listener is not None:
 			elapsed = time.time()*1000.0
 			if not self.proc_listener.PeekAtNextEvent(event):
 				if elapsed - start < timeout:
@@ -385,16 +390,14 @@ class Controller:
 				else:
 					done = True
 				# If no events in queue - wait X seconds for events
-				# if timeout > 0:
-					# self.proc_listener.WaitForEvent(timeout, event)
-					# state_new = lldb.SBProcess.GetStateFromEvent(event)
-					# eventCount = eventCount + 1
-				# done = not self.proc_listener.PeekAtNextEvent(event)
+				if timeout > 0:
+					self.proc_listener.WaitForEvent(timeout, event)
+					state_new = lldb.SBProcess.GetStateFromEvent(event)
+				done = not self.proc_listener.PeekAtNextEvent(event)
 			else:
 				# If events are in queue - process them here
 				self.proc_listener.GetNextEvent(event)
 				state_new = lldb.SBProcess.GetStateFromEvent(event)
-				eventCount = eventCount + 1
 				if state_new == lldb.eStateInvalid:
 					continue
 				done = not self.proc_listener.PeekAtNextEvent(event)

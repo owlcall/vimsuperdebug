@@ -88,8 +88,8 @@ function! SDebug#Pause()
 	python Pause()
 endfunc
 
-function! SDebug#Resume()
-	python Resume()
+function! SDebug#Continue()
+	python Continue()
 endfunc
 
 function! SDebug#StepOver()
